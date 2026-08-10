@@ -18,14 +18,24 @@ let rawDbInstance: Database | null = null
 let drizzleDbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null
 let migrationsPromise: Promise<void> | null = null
 
+let queryQueue: Promise<any> = Promise.resolve()
+
+function enqueueDbTask<T>(task: () => Promise<T>): Promise<T> {
+  const result = queryQueue.then(task, task)
+  queryQueue = result.catch(() => {})
+  return result
+}
+
 export async function getRawDb(): Promise<Database> {
   if (!rawDbInstance) {
     rawDbInstance = await Database.load('sqlite:invoices.db')
+    try {
+      await rawDbInstance.select('PRAGMA journal_mode = WAL;')
+      await rawDbInstance.select('PRAGMA busy_timeout = 5000;')
+    } catch (e) {
+      console.warn('Failed to set SQLite PRAGMAs:', e)
+    }
   }
-  if (!migrationsPromise) {
-    migrationsPromise = runDrizzleMigrations(rawDbInstance)
-  }
-  await migrationsPromise
   return rawDbInstance
 }
 
@@ -41,42 +51,64 @@ function extractSelectColumns(sql: string): string[] | null {
   })
 }
 
+async function executeWithRetry<T>(fn: () => Promise<T>, retries = 10, delay = 100): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn()
+    } catch (err: any) {
+      const msg = String(err?.message || err).toLowerCase()
+      if ((msg.includes('locked') || msg.includes('busy') || msg.includes('code: 5')) && i < retries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delay * (i + 1)))
+        continue
+      }
+      throw err
+    }
+  }
+  return await fn()
+}
+
 export async function getDb() {
   if (!drizzleDbInstance) {
     const rawDb = await getRawDb()
     drizzleDbInstance = drizzle<typeof schema>(
-      async (sql, params, method) => {
-        try {
-          if (method === 'run') {
-            await rawDb.execute(sql, params)
-            return { rows: [] }
-          }
-          const rows = await rawDb.select<Record<string, any>[]>(sql, params)
-          if (!rows || rows.length === 0) {
-            return { rows: [] }
-          }
-
-          const selectCols = extractSelectColumns(sql)
-
-          const mappedRows = rows.map((r) => {
-            if (selectCols && selectCols.length > 0) {
-              return selectCols.map((col) => (r[col] !== undefined ? r[col] : null))
+      (sql, params, method) => {
+        return enqueueDbTask(async () => {
+          try {
+            if (method === 'run') {
+              await executeWithRetry(() => rawDb.execute(sql, params))
+              return { rows: [] }
             }
-            return Object.values(r)
-          })
+            const rows = await executeWithRetry(() => rawDb.select<Record<string, any>[]>(sql, params))
+            if (!rows || rows.length === 0) {
+              return { rows: [] }
+            }
 
-          if (method === 'get') {
-            return { rows: [mappedRows[0]] }
+            const selectCols = extractSelectColumns(sql)
+
+            const mappedRows = rows.map((r) => {
+              if (selectCols && selectCols.length > 0) {
+                return selectCols.map((col) => (r[col] !== undefined ? r[col] : null))
+              }
+              return Object.values(r)
+            })
+
+            if (method === 'get') {
+              return { rows: [mappedRows[0]] }
+            }
+            return { rows: mappedRows }
+          } catch (e) {
+            console.error('Error in Drizzle SQLite proxy query:', e)
+            return { rows: [] }
           }
-          return { rows: mappedRows }
-        } catch (e) {
-          console.error('Error in Drizzle SQLite proxy query:', e)
-          return { rows: [] }
-        }
+        })
       },
       { schema }
     )
   }
+  if (!migrationsPromise) {
+    migrationsPromise = runDrizzleMigrations(drizzleDbInstance)
+  }
+  await migrationsPromise
   return drizzleDbInstance
 }
 

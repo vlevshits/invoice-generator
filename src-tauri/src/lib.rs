@@ -7,7 +7,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
-use tauri_plugin_sql::{Migration, MigrationKind};
+// tauri_plugin_sql
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InvoiceItemPayload {
@@ -848,115 +848,8 @@ async fn upload_pdf_to_google_drive(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let migrations = vec![Migration {
-        version: 1,
-        description: "create_initial_schema",
-        sql: "
-        CREATE TABLE IF NOT EXISTS profiles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            business_name TEXT NOT NULL,
-            tax_id TEXT NOT NULL,
-            legal_address TEXT NOT NULL,
-            default_currency TEXT NOT NULL DEFAULT 'GEL',
-            default_payment_terms TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS bank_accounts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-            account_label TEXT NOT NULL,
-            beneficiary_name TEXT NOT NULL,
-            bank_name TEXT NOT NULL,
-            bank_address TEXT,
-            iban TEXT NOT NULL,
-            swift_bic TEXT NOT NULL,
-            intermediary_bank_name TEXT,
-            intermediary_swift TEXT,
-            is_default BOOLEAN DEFAULT 0
-        );
-
-        CREATE TABLE IF NOT EXISTS counterparties (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            business_name TEXT NOT NULL,
-            tax_id TEXT NOT NULL,
-            director_name TEXT,
-            legal_address TEXT NOT NULL,
-            actual_address TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS invoices (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            invoice_number TEXT UNIQUE NOT NULL,
-            issue_date DATE NOT NULL,
-            due_date DATE,
-            counterparty_id INTEGER NOT NULL REFERENCES counterparties(id),
-            bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
-            currency TEXT NOT NULL,
-            total_amount REAL NOT NULL,
-            amount_in_words TEXT NOT NULL,
-            notes TEXT,
-            status TEXT DEFAULT 'ISSUED',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS invoice_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
-            item_order INTEGER NOT NULL,
-            description TEXT NOT NULL,
-            unit TEXT NOT NULL,
-            unit_price REAL NOT NULL,
-            quantity REAL NOT NULL,
-            amount REAL NOT NULL
-        );
-        ",
-        kind: MigrationKind::Up,
-    }, Migration {
-        version: 2,
-        description: "add_default_payment_terms_to_profiles",
-        sql: "ALTER TABLE profiles ADD COLUMN default_payment_terms TEXT;",
-        kind: MigrationKind::Up,
-    }, Migration {
-        version: 3,
-        description: "purge_dummy_seed_data",
-        sql: "
-        DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE bank_account_id IN (SELECT id FROM bank_accounts WHERE iban = 'GE00BG0000000000000000'));
-        DELETE FROM invoices WHERE bank_account_id IN (SELECT id FROM bank_accounts WHERE iban = 'GE00BG0000000000000000');
-        DELETE FROM bank_accounts WHERE iban = 'GE00BG0000000000000000' OR account_label LIKE '%Main Bank Account%';
-        DELETE FROM counterparties WHERE tax_id = '987654321' OR business_name = 'Acme Client Corporation';
-        DELETE FROM profiles WHERE tax_id = '123456789' AND business_name = 'Your Business Name';
-        ",
-        kind: MigrationKind::Up,
-    }, Migration {
-        version: 4,
-        description: "add_custom_typst_template_to_profiles",
-        sql: "ALTER TABLE profiles ADD COLUMN custom_typst_template TEXT;",
-        kind: MigrationKind::Up,
-    }, Migration {
-        version: 5,
-        description: "add_paid_date_to_invoices",
-        sql: "ALTER TABLE invoices ADD COLUMN paid_date TEXT;",
-        kind: MigrationKind::Up,
-    }, Migration {
-        version: 6,
-        description: "add_email_to_profiles",
-        sql: "ALTER TABLE profiles ADD COLUMN email TEXT;",
-        kind: MigrationKind::Up,
-    }, Migration {
-        version: 7,
-        description: "add_email_to_counterparties",
-        sql: "ALTER TABLE counterparties ADD COLUMN email TEXT;",
-        kind: MigrationKind::Up,
-    }];
-
     tauri::Builder::default()
-        .plugin(
-            tauri_plugin_sql::Builder::default()
-                .add_migrations("sqlite:invoices.db", migrations)
-                .build(),
-        )
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
