@@ -18,6 +18,12 @@ let drizzleDbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null
 export async function getRawDb(): Promise<Database> {
   if (!rawDbInstance) {
     rawDbInstance = await Database.load('sqlite:invoices.db')
+    try {
+      await rawDbInstance.execute('ALTER TABLE profiles ADD COLUMN default_payment_terms TEXT')
+    } catch (_) {}
+    try {
+      await rawDbInstance.execute('ALTER TABLE profiles ADD COLUMN custom_typst_template TEXT')
+    } catch (_) {}
   }
   return rawDbInstance
 }
