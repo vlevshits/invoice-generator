@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useAppStore } from '@/store/useAppStore'
+import { useAppStore, getActiveGoogleClientId } from '@/store/useAppStore'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Cloud, CloudUpload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { CloudUpload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 
 interface DriveSyncBadgeProps {
   invoiceNumber?: string
@@ -18,14 +18,11 @@ export function DriveSyncBadge({ invoiceNumber, pdfPath, onSyncSuccess }: DriveS
   const [errorMessage, setErrorMessage] = useState('')
 
   const handleConnectDrive = async () => {
-    if (!googleClientId) {
-      alert('Please configure your Google OAuth Client ID in Settings first.')
-      return
-    }
+    const activeClientId = getActiveGoogleClientId(googleClientId)
 
     try {
       setIsSyncing(true)
-      const tokens: any = await invoke('start_google_oauth', { clientId: googleClientId })
+      const tokens: any = await invoke('start_google_oauth', { clientId: activeClientId })
       if (tokens && tokens.access_token) {
         setGoogleAccessToken(tokens.access_token)
       }
@@ -76,13 +73,20 @@ export function DriveSyncBadge({ invoiceNumber, pdfPath, onSyncSuccess }: DriveS
           Drive Connected
         </Badge>
       ) : (
-        <Badge variant="outline" className="gap-1 text-muted-foreground">
-          <AlertCircle className="h-3 w-3" />
-          Drive Offline
-        </Badge>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          onClick={handleConnectDrive}
+          disabled={isSyncing}
+        >
+          {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertCircle className="h-3.5 w-3.5 text-amber-500" />}
+          Sign in to Google Drive
+        </Button>
       )}
 
-      {pdfPath && (
+      {pdfPath && googleAccessToken && (
         <Button
           type="button"
           variant="outline"
@@ -98,10 +102,6 @@ export function DriveSyncBadge({ invoiceNumber, pdfPath, onSyncSuccess }: DriveS
           )}
           {syncStatus === 'success' ? 'Uploaded to Drive!' : 'Upload to Drive'}
         </Button>
-      )}
-
-      {syncStatus === 'error' && (
-        <span className="text-[10px] text-destructive">{errorMessage}</span>
       )}
     </div>
   )

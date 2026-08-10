@@ -24,23 +24,39 @@ export function Sidebar() {
 
   return (
     <aside className="w-64 bg-card border-r border-border flex flex-col justify-between p-4 select-none shrink-0 h-screen">
-      {/* Top Logo & App Header */}
+      {/* Top Logo, Header & Theme Toggle */}
       <div className="space-y-6">
-        <div className="flex items-center gap-3 px-2 pt-2">
-          <img
-            src="/icon.png"
-            alt="Invoice Generator Logo"
-            className="h-10 w-10 rounded-lg shadow-sm border border-emerald-500/20 object-cover"
-          />
-          <div>
-            <h1 className="font-display font-bold text-sm text-foreground tracking-tight">
-              Privacy Invoice
-            </h1>
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <ShieldCheck className="h-3 w-3 text-emerald-500" />
-              <span>Offline SQLite</span>
+        <div className="flex items-center justify-between px-2 pt-2">
+          <div className="flex items-center gap-3">
+            <img
+              src="/icon.png"
+              alt="Invoice Generator Logo"
+              className="h-9 w-9 rounded-lg shadow-sm border border-emerald-500/20 object-cover"
+            />
+            <div>
+              <h1 className="font-display font-bold text-sm text-foreground tracking-tight">
+                Privacy Invoice
+              </h1>
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                <span>Offline SQLite</span>
+              </div>
             </div>
           </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            title="Toggle theme"
+          >
+            {theme === 'dark' ? (
+              <Sun className="h-4 w-4 text-amber-400" />
+            ) : (
+              <Moon className="h-4 w-4 text-slate-700" />
+            )}
+          </Button>
         </div>
 
         {/* Primary Create Invoice Button */}
@@ -73,26 +89,6 @@ export function Sidebar() {
             )
           })}
         </nav>
-      </div>
-
-      {/* Bottom Footer & Theme Toggle */}
-      <div className="pt-4 border-t border-border">
-        <div className="flex items-center justify-between px-2">
-          <span className="text-xs text-muted-foreground font-medium">Appearance</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            title="Toggle theme"
-          >
-            {theme === 'dark' ? (
-              <Sun className="h-4 w-4 text-amber-400" />
-            ) : (
-              <Moon className="h-4 w-4 text-slate-700" />
-            )}
-          </Button>
-        </div>
       </div>
     </aside>
   )

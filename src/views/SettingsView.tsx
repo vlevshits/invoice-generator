@@ -7,7 +7,7 @@ import {
   saveBankAccount,
   deleteBankAccount,
 } from '@/lib/db'
-import { useAppStore } from '@/store/useAppStore'
+import { useAppStore, getActiveGoogleClientId } from '@/store/useAppStore'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,8 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 
 export function SettingsView() {
@@ -62,7 +64,8 @@ export function SettingsView() {
   const [isDefaultBank, setIsDefaultBank] = useState(false)
 
   const [isOAuthRunning, setIsOAuthRunning] = useState(false)
-  const [clientIdInput, setClientIdInput] = useState(googleClientId)
+  const [customClientIdInput, setCustomClientIdInput] = useState(googleClientId)
+  const [showAdvancedOAuth, setShowAdvancedOAuth] = useState(false)
 
   const loadData = async () => {
     const [p, bList] = await Promise.all([getProfile(), getBankAccounts()])
@@ -146,19 +149,17 @@ export function SettingsView() {
   }
 
   const handleGoogleOAuth = async () => {
-    if (!clientIdInput) {
-      alert('Please enter your Google OAuth Client ID first.')
-      return
-    }
-
-    setGoogleClientId(clientIdInput)
+    const activeClientId = getActiveGoogleClientId(customClientIdInput)
 
     try {
       setIsOAuthRunning(true)
-      const tokens: any = await invoke('start_google_oauth', { clientId: clientIdInput })
+      const tokens: any = await invoke('start_google_oauth', { clientId: activeClientId })
       if (tokens && tokens.access_token) {
         setGoogleAccessToken(tokens.access_token)
-        alert('Google Drive OAuth authorization successful!')
+        if (customClientIdInput) {
+          setGoogleClientId(customClientIdInput)
+        }
+        alert('Google Drive authorization successful!')
       }
     } catch (err: any) {
       alert('OAuth Error: ' + String(err))
@@ -332,7 +333,7 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
-      {/* 3. Google Drive OAuth Integration Card */}
+      {/* 3. Google Drive Automatic Cloud Backup Card */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -340,62 +341,87 @@ export function SettingsView() {
             Google Drive Automatic Cloud Backup
           </CardTitle>
           <CardDescription>
-            Connect Google Drive via Desktop PKCE flow with <code>drive.file</code> scope for 1-click cloud sync.
+            One-click Google OAuth2 desktop authentication using local loopback PKCE listener and <code>drive.file</code> scope.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            {googleAccessToken ? (
-              <Badge variant="paid" className="gap-1 px-3 py-1">
-                <CheckCircle className="h-4 w-4" />
-                Google Drive Connected & Authorized
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="gap-1 px-3 py-1 text-muted-foreground">
-                <AlertCircle className="h-4 w-4" />
-                Not Connected
-              </Badge>
-            )}
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">
-              Google OAuth2 Client ID (Desktop Application)
-            </label>
-            <Input
-              placeholder="e.g. 123456789-abc.apps.googleusercontent.com"
-              value={clientIdInput}
-              onChange={(e) => setClientIdInput(e.target.value)}
-              mono
-            />
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Create a Desktop app credential in Google Cloud Console with scope{' '}
-              <code>https://www.googleapis.com/auth/drive.file</code>.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 pt-2">
-            <Button
-              onClick={handleGoogleOAuth}
-              disabled={isOAuthRunning || !clientIdInput}
-              className="gap-2"
-            >
-              {isOAuthRunning ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+          <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border border-border">
+            <div className="flex items-center gap-3">
+              {googleAccessToken ? (
+                <Badge variant="paid" className="gap-1 px-3 py-1 text-xs">
+                  <CheckCircle className="h-4 w-4" />
+                  Google Drive Connected
+                </Badge>
               ) : (
-                <Cloud className="h-4 w-4" />
+                <Badge variant="outline" className="gap-1 px-3 py-1 text-xs text-muted-foreground">
+                  <AlertCircle className="h-4 w-4" />
+                  Not Connected
+                </Badge>
               )}
-              {googleAccessToken ? 'Re-authorize Google Drive' : 'Login with Google Drive (PKCE)'}
-            </Button>
+              <span className="text-xs text-muted-foreground">
+                {googleAccessToken
+                  ? 'Your account is linked. PDFs can be synced directly to your Drive.'
+                  : 'Sign in to grant 1-click PDF upload permission.'}
+              </span>
+            </div>
 
-            {googleAccessToken && (
+            <div className="flex items-center gap-3">
               <Button
-                variant="outline"
-                onClick={() => setGoogleAccessToken(null)}
-                className="text-destructive hover:text-destructive"
+                onClick={handleGoogleOAuth}
+                disabled={isOAuthRunning}
+                className="gap-2 font-semibold shadow-xs"
               >
-                Disconnect Drive
+                {isOAuthRunning ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Cloud className="h-4 w-4" />
+                )}
+                {googleAccessToken ? 'Re-authorize Google Drive' : 'Sign in with Google Drive'}
               </Button>
+
+              {googleAccessToken && (
+                <Button
+                  variant="outline"
+                  onClick={() => setGoogleAccessToken(null)}
+                  className="text-destructive hover:text-destructive text-xs"
+                >
+                  Disconnect
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Advanced Custom Client ID Section */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedOAuth(!showAdvancedOAuth)}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 cursor-pointer font-medium"
+            >
+              {showAdvancedOAuth ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              Advanced OAuth Settings (Optional Custom GCP Client ID)
+            </button>
+
+            {showAdvancedOAuth && (
+              <div className="mt-3 p-4 rounded-md border border-border bg-card space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Custom Google OAuth Client ID
+                  </label>
+                  <Input
+                    placeholder="Leave blank to use pre-configured Desktop Client ID"
+                    value={customClientIdInput}
+                    onChange={(e) => {
+                      setCustomClientIdInput(e.target.value)
+                      setGoogleClientId(e.target.value)
+                    }}
+                    mono
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    By default, the app uses a pre-configured Desktop OAuth Client ID. You can optionally supply your own Client ID from Google Cloud Console.
+                  </p>
+                </div>
+              </div>
             )}
           </div>
         </CardContent>
