@@ -507,16 +507,16 @@ export function InvoiceBuilderView() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 py-2">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Current Status
-                </label>
-                <div className="flex items-center gap-3">
-                  {getStatusBadge(status)}
-                  <span className="text-xs text-muted-foreground italic">
-                    (Use top header action buttons to transition status)
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Current Status:
                   </span>
+                  {getStatusBadge(status)}
                 </div>
+                <p className="text-xs text-muted-foreground italic">
+                  (Use top header action buttons to transition status)
+                </p>
               </div>
 
               <div>
