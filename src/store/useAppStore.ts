@@ -26,6 +26,7 @@ interface AppState {
   googleAccessToken: string | null
   googleClientId: string
   googleClientSecret: string
+  googleDriveFolderName: string
 
   setCurrentView: (view: ActiveView) => void
   startCreateInvoice: () => void
@@ -33,6 +34,7 @@ interface AppState {
   setGoogleAccessToken: (token: string | null) => void
   setGoogleClientId: (clientId: string) => void
   setGoogleClientSecret: (clientSecret: string) => void
+  setGoogleDriveFolderName: (folderName: string) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -41,6 +43,7 @@ export const useAppStore = create<AppState>((set) => ({
   googleAccessToken: localStorage.getItem('google_drive_token'),
   googleClientId: localStorage.getItem('google_client_id') || '',
   googleClientSecret: localStorage.getItem('google_client_secret') || '',
+  googleDriveFolderName: localStorage.getItem('google_drive_folder_name') || 'Invoice Generator',
 
   setCurrentView: (view) => set({ currentView: view }),
 
@@ -73,5 +76,11 @@ export const useAppStore = create<AppState>((set) => ({
   setGoogleClientSecret: (clientSecret) => {
     localStorage.setItem('google_client_secret', clientSecret)
     set({ googleClientSecret: clientSecret })
+  },
+
+  setGoogleDriveFolderName: (folderName) => {
+    const val = folderName.trim() || 'Invoice Generator'
+    localStorage.setItem('google_drive_folder_name', val)
+    set({ googleDriveFolderName: val })
   },
 }))

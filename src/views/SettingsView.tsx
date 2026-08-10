@@ -12,6 +12,7 @@ import {
   getActiveGoogleClientId,
   getActiveGoogleClientSecret,
 } from '@/store/useAppStore'
+import { performFullGoogleDriveSync } from '@/lib/driveSync'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,6 +40,8 @@ import {
   Loader2,
   FileCode,
   RotateCcw,
+  RefreshCw,
+  FolderSync,
 } from 'lucide-react'
 
 export const DEFAULT_TYPST_TEMPLATE = `#set page(paper: "a4", margin: (x: 1.5cm, y: 1.8cm))
@@ -154,9 +157,11 @@ export function SettingsView() {
     googleAccessToken,
     googleClientId,
     googleClientSecret,
+    googleDriveFolderName,
     setGoogleAccessToken,
     setGoogleClientId,
     setGoogleClientSecret,
+    setGoogleDriveFolderName,
   } = useAppStore()
 
   // Seller Profile Form
@@ -184,6 +189,8 @@ export function SettingsView() {
   const [isDefaultBank, setIsDefaultBank] = useState(false)
 
   const [isOAuthRunning, setIsOAuthRunning] = useState(false)
+  const [isSyncingDrive, setIsSyncingDrive] = useState(false)
+  const [syncProgress, setSyncProgress] = useState('')
   const [customClientIdInput, setCustomClientIdInput] = useState(googleClientId)
   const [customClientSecretInput, setCustomClientSecretInput] = useState(googleClientSecret)
 
@@ -321,6 +328,28 @@ export function SettingsView() {
 
   const handleCancelOAuth = () => {
     setIsOAuthRunning(false)
+  }
+
+  const handleFullDriveSync = async () => {
+    if (!googleAccessToken) return
+    try {
+      setIsSyncingDrive(true)
+      await performFullGoogleDriveSync(
+        googleAccessToken,
+        googleDriveFolderName,
+        (progressStr) => {
+          setSyncProgress(progressStr)
+        }
+      )
+      alert(
+        `Google Drive Sync Successful!\nAll invoices & Google Sheet summary exported to folder "${googleDriveFolderName}".`
+      )
+    } catch (err: any) {
+      alert('Drive Sync Error: ' + String(err))
+    } finally {
+      setIsSyncingDrive(false)
+      setSyncProgress('')
+    }
   }
 
   const templateVariables = [
@@ -583,13 +612,13 @@ export function SettingsView() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Cloud className="h-4 w-4 text-primary" />
-            Google Drive Automatic Cloud Backup
+            Google Drive Automatic Cloud Backup & Sync
           </CardTitle>
           <CardDescription>
-            One-click Google OAuth2 desktop authentication using local loopback PKCE listener and <code>drive.file</code> scope.
+            One-click Google OAuth2 desktop authentication. Automatically sync your full invoices ledger as a Google Sheet & upload all generated PDFs to your custom Drive folder.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border border-border">
             <div className="flex items-center gap-3">
               {googleAccessToken ? (
@@ -605,7 +634,7 @@ export function SettingsView() {
               )}
               <span className="text-xs text-muted-foreground">
                 {googleAccessToken
-                  ? 'Your account is linked. PDFs can be synced directly to your Drive.'
+                  ? 'Your account is linked. Single PDFs and full ledger sync are enabled.'
                   : 'Sign in to grant 1-click PDF upload permission.'}
               </span>
             </div>
@@ -641,6 +670,49 @@ export function SettingsView() {
               )}
             </div>
           </div>
+
+          {/* Target Folder & Sync Engine Controls */}
+          {googleAccessToken && (
+            <div className="p-4 rounded-lg bg-card border border-border/80 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div className="space-y-1.5 flex-1 max-w-md">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <FolderSync className="h-3.5 w-3.5 text-primary" />
+                    Target Google Drive Folder Name
+                  </label>
+                  <Input
+                    value={googleDriveFolderName}
+                    onChange={(e) => setGoogleDriveFolderName(e.target.value)}
+                    placeholder="Invoice Generator"
+                    className="font-mono text-xs font-medium"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    PDFs and the Google Sheet invoice summary will be synced inside this folder.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleFullDriveSync}
+                  disabled={isSyncingDrive}
+                  className="gap-2 font-semibold shadow-xs bg-emerald-600 hover:bg-emerald-500 text-white shrink-0"
+                >
+                  {isSyncingDrive ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  {isSyncingDrive ? 'Syncing...' : 'Sync Ledger & PDFs to Google Drive'}
+                </Button>
+              </div>
+
+              {isSyncingDrive && (
+                <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-md text-emerald-300 text-xs font-mono flex items-center gap-2.5 animate-pulse">
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0 text-emerald-400" />
+                  <span>{syncProgress || 'Syncing with Google Drive...'}</span>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

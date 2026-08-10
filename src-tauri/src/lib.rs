@@ -404,26 +404,149 @@ async fn start_google_oauth(
 }
 
 #[tauri::command]
+async fn get_or_create_drive_folder(
+    access_token: String,
+    folder_name: String,
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+
+    let q = format!(
+        "name = '{}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        folder_name.replace("'", "\\'")
+    );
+
+    let search_res = client
+        .get("https://www.googleapis.com/drive/v3/files")
+        .bearer_auth(&access_token)
+        .query(&[("q", q.as_str()), ("fields", "files(id, name)")])
+        .send()
+        .await
+        .map_err(|e| format!("Folder search request failed: {}", e))?;
+
+    if search_res.status().is_success() {
+        let json: serde_json::Value = search_res
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse search response: {}", e))?;
+
+        if let Some(files) = json.get("files").and_then(|f| f.as_array()) {
+            if let Some(first) = files.first() {
+                if let Some(id) = first.get("id").and_then(|i| i.as_str()) {
+                    return Ok(id.to_string());
+                }
+            }
+        }
+    }
+
+    let create_payload = serde_json::json!({
+        "name": folder_name,
+        "mimeType": "application/vnd.google-apps.folder"
+    });
+
+    let create_res = client
+        .post("https://www.googleapis.com/drive/v3/files")
+        .bearer_auth(&access_token)
+        .json(&create_payload)
+        .send()
+        .await
+        .map_err(|e| format!("Folder creation request failed: {}", e))?;
+
+    if !create_res.status().is_success() {
+        let err = create_res.text().await.unwrap_or_default();
+        return Err(format!("Drive API folder creation error: {}", err));
+    }
+
+    let created_json: serde_json::Value = create_res
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse created folder response: {}", e))?;
+
+    let folder_id = created_json
+        .get("id")
+        .and_then(|i| i.as_str())
+        .ok_or_else(|| "No folder ID returned from Drive API".to_string())?;
+
+    Ok(folder_id.to_string())
+}
+
+#[tauri::command]
+async fn export_csv_to_google_sheet(
+    access_token: String,
+    folder_id: String,
+    sheet_name: String,
+    csv_content: String,
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+
+    let metadata = serde_json::json!({
+        "name": sheet_name,
+        "mimeType": "application/vnd.google-apps.spreadsheet",
+        "parents": [folder_id]
+    });
+
+    let boundary = "foo_bar_baz_sheet_boundary";
+    let mut body = Vec::new();
+
+    body.extend(format!("--{}\r\n", boundary).as_bytes());
+    body.extend(b"Content-Type: application/json; charset=UTF-8\r\n\r\n");
+    body.extend(metadata.to_string().as_bytes());
+    body.extend(b"\r\n");
+
+    body.extend(format!("--{}\r\n", boundary).as_bytes());
+    body.extend(b"Content-Type: text/csv; charset=UTF-8\r\n\r\n");
+    body.extend(csv_content.as_bytes());
+    body.extend(b"\r\n");
+    body.extend(format!("--{}\r\n", boundary).as_bytes());
+
+    let res = client
+        .post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
+        .bearer_auth(access_token)
+        .header("Content-Type", format!("multipart/related; boundary={}", boundary))
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| format!("Network request to upload sheet failed: {}", e))?;
+
+    if !res.status().is_success() {
+        let err = res.text().await.unwrap_or_default();
+        return Err(format!("Drive API sheet upload error: {}", err));
+    }
+
+    let body_text = res.text().await.unwrap_or_default();
+    Ok(body_text)
+}
+
+#[tauri::command]
 async fn upload_pdf_to_google_drive(
     access_token: String,
     file_path: String,
     file_name: String,
+    parent_folder_id: Option<String>,
 ) -> Result<String, String> {
     let pdf_bytes = fs::read(&file_path).map_err(|e| format!("Failed to read PDF file: {}", e))?;
 
     let client = reqwest::Client::new();
 
-    let metadata = serde_json::json!({
+    let mut metadata_map = serde_json::json!({
         "name": file_name,
         "mimeType": "application/pdf"
     });
+
+    if let Some(folder_id) = parent_folder_id {
+        if !folder_id.trim().is_empty() {
+            metadata_map.as_object_mut().unwrap().insert(
+                "parents".to_string(),
+                serde_json::json!([folder_id])
+            );
+        }
+    }
 
     let boundary = "foo_bar_baz_boundary";
     let mut body = Vec::new();
 
     body.extend(format!("--{}\r\n", boundary).as_bytes());
     body.extend(b"Content-Type: application/json; charset=UTF-8\r\n\r\n");
-    body.extend(metadata.to_string().as_bytes());
+    body.extend(metadata_map.to_string().as_bytes());
     body.extend(b"\r\n");
 
     body.extend(format!("--{}\r\n", boundary).as_bytes());
@@ -553,6 +676,8 @@ pub fn run() {
             generate_pdf_command,
             start_google_oauth,
             upload_pdf_to_google_drive,
+            get_or_create_drive_folder,
+            export_csv_to_google_sheet,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

@@ -2,11 +2,10 @@ import { useState, useEffect } from 'react'
 import type { InvoiceWithDetails, Counterparty, InvoiceStatus } from '@/types'
 import { getInvoices, getCounterparties, deleteInvoice, updateInvoiceStatus } from '@/lib/db'
 import { useAppStore } from '@/store/useAppStore'
-import { invoke } from '@tauri-apps/api/core'
-import { save as saveFileDialog } from '@tauri-apps/plugin-dialog'
+import { performFullGoogleDriveSync } from '@/lib/driveSync'
+import { DriveSyncBadge } from '@/components/domain/DriveSyncBadge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import {
   Table,
@@ -16,31 +15,40 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
+  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import { DriveSyncBadge } from '@/components/domain/DriveSyncBadge'
 import {
-  FileText,
   Plus,
-  Download,
-  Trash2,
-  MoreVertical,
   Filter,
-  RefreshCw,
+  MoreVertical,
+  Download,
   Edit,
+  Trash2,
   CheckCircle2,
+  FileCheck,
   Clock,
   Ban,
-  FileCheck,
+  RefreshCw,
+  FileText,
+  Cloud,
+  Loader2,
 } from 'lucide-react'
+import { invoke } from '@tauri-apps/api/core'
 
 export function InvoicesLedgerView() {
-  const { startCreateInvoice, startEditInvoice } = useAppStore()
+  const {
+    startCreateInvoice,
+    startEditInvoice,
+    googleAccessToken,
+    googleDriveFolderName,
+  } = useAppStore()
+
   const [invoices, setInvoices] = useState<InvoiceWithDetails[]>([])
   const [counterparties, setCounterparties] = useState<Counterparty[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,6 +58,10 @@ export function InvoicesLedgerView() {
   const [endDate, setEndDate] = useState('')
   const [selectedCounterpartyId, setSelectedCounterpartyId] = useState<number | 0>(0)
   const [selectedStatus, setSelectedStatus] = useState<InvoiceStatus | 'ALL'>('ALL')
+
+  // Drive Syncing State
+  const [isSyncingDrive, setIsSyncingDrive] = useState(false)
+  const [syncProgress, setSyncProgress] = useState('')
 
   const loadData = async () => {
     try {
@@ -65,8 +77,8 @@ export function InvoicesLedgerView() {
       ])
       setInvoices(invList)
       setCounterparties(cpList)
-    } catch (err) {
-      console.error('Failed to load invoices:', err)
+    } catch (err: any) {
+      console.error('Failed to load ledger data:', err)
     } finally {
       setLoading(false)
     }
@@ -88,40 +100,32 @@ export function InvoicesLedgerView() {
     loadData()
   }
 
-  const handleDownloadPdf = async (invoice: InvoiceWithDetails) => {
+  const handleDownloadPdf = async (inv: InvoiceWithDetails) => {
     try {
-      const defaultName = `Invoice_${invoice.invoice_number}.pdf`
-      const targetPath = await saveFileDialog({
-        defaultPath: defaultName,
-        filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
-      })
-
-      if (!targetPath) return
-
       const payload = {
-        invoice_number: invoice.invoice_number,
-        issue_date: invoice.issue_date,
-        due_date: invoice.due_date,
+        invoice_number: inv.invoice_number,
+        issue_date: inv.issue_date,
+        due_date: inv.due_date,
         seller_name: 'Your Business Name',
         seller_tax_id: '123456789',
-        seller_address: '123 Main Street, Suite 100, City, Country',
-        buyer_name: invoice.counterparty?.business_name || 'Buyer',
-        buyer_tax_id: invoice.counterparty?.tax_id || 'N/A',
-        buyer_director: invoice.counterparty?.director_name,
-        buyer_address: invoice.counterparty?.legal_address || 'N/A',
-        bank_account_label: invoice.bank_account?.account_label || 'Bank Account',
-        bank_beneficiary: invoice.bank_account?.beneficiary_name || 'Your Business Name',
-        bank_name: invoice.bank_account?.bank_name || 'Bank',
-        bank_address: invoice.bank_account?.bank_address,
-        bank_iban: invoice.bank_account?.iban || 'N/A',
-        bank_swift: invoice.bank_account?.swift_bic || 'N/A',
-        intermediary_bank: invoice.bank_account?.intermediary_bank_name,
-        intermediary_swift: invoice.bank_account?.intermediary_swift,
-        currency: invoice.currency,
-        total_amount: invoice.total_amount,
-        amount_in_words: invoice.amount_in_words,
-        notes: invoice.notes,
-        items: invoice.items.map((it) => ({
+        seller_address: 'Address',
+        buyer_name: inv.counterparty?.business_name || 'Buyer',
+        buyer_tax_id: inv.counterparty?.tax_id || '',
+        buyer_director: inv.counterparty?.director_name || '',
+        buyer_address: inv.counterparty?.legal_address || '',
+        bank_account_label: inv.bank_account?.account_label || 'Bank Account',
+        bank_beneficiary: inv.bank_account?.beneficiary_name || '',
+        bank_name: inv.bank_account?.bank_name || '',
+        bank_address: inv.bank_account?.bank_address || '',
+        bank_iban: inv.bank_account?.iban || '',
+        bank_swift: inv.bank_account?.swift_bic || '',
+        intermediary_bank: inv.bank_account?.intermediary_bank_name || '',
+        intermediary_swift: inv.bank_account?.intermediary_swift || '',
+        currency: inv.currency,
+        total_amount: inv.total_amount,
+        amount_in_words: inv.amount_in_words,
+        notes: inv.notes,
+        items: inv.items.map((it) => ({
           description: it.description,
           unit: it.unit,
           unit_price: it.unit_price,
@@ -130,14 +134,40 @@ export function InvoicesLedgerView() {
         })),
       }
 
-      await invoke('generate_pdf_command', {
+      const generatedPath: any = await invoke('generate_pdf_command', {
         payload,
-        targetPath,
+        targetPath: null,
       })
 
-      alert(`PDF downloaded successfully to: ${targetPath}`)
+      alert(`PDF generated and saved to:\n${generatedPath}`)
     } catch (err: any) {
-      alert('Failed to generate/download PDF: ' + String(err))
+      alert('Error generating PDF: ' + String(err))
+    }
+  }
+
+  const handleDriveSync = async () => {
+    if (!googleAccessToken) {
+      alert('Please connect your Google Drive in Settings first.')
+      return
+    }
+
+    try {
+      setIsSyncingDrive(true)
+      await performFullGoogleDriveSync(
+        googleAccessToken,
+        googleDriveFolderName,
+        (progressStr) => {
+          setSyncProgress(progressStr)
+        }
+      )
+      alert(
+        `Google Drive Sync Successful!\nAll invoices & Google Sheet summary exported to folder "${googleDriveFolderName}".`
+      )
+    } catch (err: any) {
+      alert('Drive Sync Error: ' + String(err))
+    } finally {
+      setIsSyncingDrive(false)
+      setSyncProgress('')
     }
   }
 
@@ -165,15 +195,41 @@ export function InvoicesLedgerView() {
             Invoices Ledger
           </h2>
           <p className="text-sm text-muted-foreground">
-            Track, filter, export, and back up all generated invoices locally.
+            Track, filter, export, and sync all generated invoices to Google Drive.
           </p>
         </div>
 
-        <Button onClick={startCreateInvoice} className="gap-2 shadow-xs">
-          <Plus className="h-4 w-4" />
-          Create New Invoice
-        </Button>
+        <div className="flex items-center gap-3">
+          {googleAccessToken && (
+            <Button
+              variant="outline"
+              onClick={handleDriveSync}
+              disabled={isSyncingDrive}
+              className="gap-2 text-xs font-semibold border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+            >
+              {isSyncingDrive ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+              ) : (
+                <Cloud className="h-3.5 w-3.5 text-emerald-400" />
+              )}
+              {isSyncingDrive ? 'Syncing to Drive...' : 'Sync to Google Drive'}
+            </Button>
+          )}
+
+          <Button onClick={startCreateInvoice} className="gap-2 shadow-xs">
+            <Plus className="h-4 w-4" />
+            Create New Invoice
+          </Button>
+        </div>
       </div>
+
+      {/* Progress Banner */}
+      {isSyncingDrive && (
+        <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-md text-emerald-300 text-xs font-mono flex items-center gap-2.5 animate-pulse">
+          <Loader2 className="h-4 w-4 animate-spin shrink-0 text-emerald-400" />
+          <span>{syncProgress || 'Syncing with Google Drive...'}</span>
+        </div>
+      )}
 
       {/* Filter Engine Panel */}
       <Card>
