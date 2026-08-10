@@ -105,7 +105,15 @@ async fn generate_pdf_command(
 
     let notes = payload.notes.as_deref().unwrap_or("");
     let amount_in_words = escape_typst_str(&payload.amount_in_words);
-    let due_date_str = payload.due_date.as_deref().unwrap_or("N/A");
+    let due_date_typst = if let Some(d) = payload.due_date.as_deref() {
+        if !d.trim().is_empty() {
+            format!("Due Date: {}", d)
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
 
     let director_typst = if !buyer_director.is_empty() {
         format!("Director / Rep: {} \\", escape_typst_str(buyer_director))
@@ -139,7 +147,7 @@ async fn generate_pdf_command(
             .replace("{{seller_address}}", &seller_address)
             .replace("{{invoice_number}}", &payload.invoice_number)
             .replace("{{issue_date}}", &payload.issue_date)
-            .replace("{{due_date}}", due_date_str)
+            .replace("{{due_date}}", &due_date_typst)
             .replace("{{buyer_name}}", &buyer_name)
             .replace("{{buyer_tax_id}}", &buyer_tax_id)
             .replace("{{buyer_director}}", &director_typst)
@@ -160,10 +168,10 @@ async fn generate_pdf_command(
 #set text(size: 9.5pt)
 
 #grid(
-  columns: (1fr, 1fr),
+  columns: (1.35fr, 0.65fr),
   align: (left, right),
   [
-    #text(size: 15pt, weight: "bold", fill: rgb("0f172a"))[{seller_name}] \
+    #text(size: 14pt, weight: "bold", fill: rgb("0f172a"))[{seller_name}] \
     #v(2pt)
     #text(size: 8.5pt, fill: rgb("475569"))[
       Tax ID: {seller_tax_id} \
@@ -177,7 +185,7 @@ async fn generate_pdf_command(
     #v(2pt)
     #text(size: 8.5pt, fill: rgb("475569"))[
       Issue Date: {issue_date} \
-      Due Date: {due_date_str}
+      {due_date_typst}
     ]
   ]
 )
@@ -222,23 +230,24 @@ async fn generate_pdf_command(
   [ *Description* ], [ *Qty (Units)* ], [ *Unit Price* ], [ *Net Price* ],
 {items_typst})
 
-#v(10pt)
+#v(12pt)
 
 #align(right)[
-  #block(width: 220pt)[
+  #block(width: 320pt, fill: rgb("f8fafc"), stroke: 0.5pt + rgb("e2e8f0"), inset: 10pt, radius: 4pt)[
     #grid(
-      columns: (1fr, 1fr),
+      columns: (1fr, auto),
       align: (left, right),
       row-gutter: 6pt,
-      [ *Grand Total:* ], [ *#text(size: 12pt, weight: "bold", fill: rgb("10b981"))[{curr_sym}{total_amount:.2}]* ]
+      [ *Grand Total:* ], [ *#text(size: 13pt, weight: "bold", fill: rgb("10b981"))[{curr_sym}{total_amount:.2}]* ]
     )
-  ]
-]
-
-#v(10pt)
-#rect(width: 100%, fill: rgb("f1f5f9"), inset: 8pt, radius: 4pt)[
-  #text(size: 8.5pt, weight: "medium", fill: rgb("334155"))[
-    *Amount in words:* {amount_in_words}
+    #v(4pt)
+    #line(length: 100%, stroke: 0.5pt + rgb("cbd5e1"))
+    #v(4pt)
+    #align(left)[
+      #text(size: 8.5pt, fill: rgb("334155"))[
+        *Amount in words:* {amount_in_words}
+      ]
+    ]
   ]
 ]
 
@@ -269,7 +278,7 @@ async fn generate_pdf_command(
             seller_address = seller_address,
             invoice_number = payload.invoice_number,
             issue_date = payload.issue_date,
-            due_date_str = due_date_str,
+            due_date_typst = due_date_typst,
             buyer_name = buyer_name,
             buyer_tax_id = buyer_tax_id,
             director_typst = director_typst,

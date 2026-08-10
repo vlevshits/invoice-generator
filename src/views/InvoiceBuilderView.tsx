@@ -541,7 +541,7 @@ export function InvoiceBuilderView() {
             {/* Header Preview */}
             <div className="flex justify-between items-start border-b border-border pb-4">
               <div>
-                <h3 className="font-bold text-lg font-display text-foreground">
+                <h3 className="font-bold text-base font-display text-foreground leading-snug">
                   {profile?.business_name || 'Your Business Name'}
                 </h3>
                 <p className="text-muted-foreground text-xs">
@@ -558,8 +558,8 @@ export function InvoiceBuilderView() {
                   {invoiceNumber || 'INV-202608-01'}
                 </p>
                 <p className="text-muted-foreground text-xs">Date: {issueDate}</p>
-                {dueDate && <p className="text-muted-foreground text-xs">Due: {dueDate}</p>}
-                {paidDate && <p className="text-emerald-400 font-semibold text-xs">Paid: {paidDate}</p>}
+                {dueDate ? <p className="text-muted-foreground text-xs">Due: {dueDate}</p> : null}
+                {paidDate ? <p className="text-emerald-400 font-semibold text-xs">Paid: {paidDate}</p> : null}
               </div>
             </div>
 
@@ -630,15 +630,19 @@ export function InvoiceBuilderView() {
               </table>
             </div>
 
-            {/* Total Summary */}
+            {/* Combined Total Summary Card */}
             <div className="flex justify-end pt-2">
-              <div className="w-48 space-y-1 text-right">
-                <div className="flex justify-between font-bold text-sm border-t border-border pt-2 text-foreground">
-                  <span>Grand Total:</span>
-                  <span className="text-emerald-500 font-mono">
+              <div className="w-80 p-3.5 bg-muted/40 border border-border rounded-lg space-y-2">
+                <div className="flex justify-between items-center font-bold text-sm">
+                  <span className="text-foreground">Grand Total:</span>
+                  <span className="text-emerald-500 font-mono text-base">
                     {currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency === 'GBP' ? '£' : 'GEL '}
                     {totalAmount.toFixed(2)}
                   </span>
+                </div>
+                <div className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+                  <span className="font-semibold text-foreground">Amount in words:</span>{' '}
+                  {amountInWords}
                 </div>
               </div>
             </div>

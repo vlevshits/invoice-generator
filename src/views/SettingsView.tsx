@@ -48,10 +48,10 @@ export const DEFAULT_TYPST_TEMPLATE = `#set page(paper: "a4", margin: (x: 1.5cm,
 #set text(size: 9.5pt)
 
 #grid(
-  columns: (1fr, 1fr),
+  columns: (1.35fr, 0.65fr),
   align: (left, right),
   [
-    #text(size: 15pt, weight: "bold", fill: rgb("0f172a"))[{{seller_name}}] \\
+    #text(size: 14pt, weight: "bold", fill: rgb("0f172a"))[{{seller_name}}] \\
     #v(2pt)
     #text(size: 8.5pt, fill: rgb("475569"))[
       Tax ID: {{seller_tax_id}} \\
@@ -65,7 +65,7 @@ export const DEFAULT_TYPST_TEMPLATE = `#set page(paper: "a4", margin: (x: 1.5cm,
     #v(2pt)
     #text(size: 8.5pt, fill: rgb("475569"))[
       Issue Date: {{issue_date}} \\
-      Due Date: {{due_date}}
+      {{due_date}}
     ]
   ]
 )
@@ -110,23 +110,24 @@ export const DEFAULT_TYPST_TEMPLATE = `#set page(paper: "a4", margin: (x: 1.5cm,
   [ *Description* ], [ *Qty (Units)* ], [ *Unit Price* ], [ *Net Price* ],
 {{items_table_rows}})
 
-#v(10pt)
+#v(12pt)
 
 #align(right)[
-  #block(width: 220pt)[
+  #block(width: 320pt, fill: rgb("f8fafc"), stroke: 0.5pt + rgb("e2e8f0"), inset: 10pt, radius: 4pt)[
     #grid(
-      columns: (1fr, 1fr),
+      columns: (1fr, auto),
       align: (left, right),
       row-gutter: 6pt,
-      [ *Grand Total:* ], [ *#text(size: 12pt, weight: "bold", fill: rgb("10b981"))[{{currency_symbol}}{{total_amount}}]* ]
+      [ *Grand Total:* ], [ *#text(size: 13pt, weight: "bold", fill: rgb("10b981"))[{{currency_symbol}}{{total_amount}}]* ]
     )
-  ]
-]
-
-#v(10pt)
-#rect(width: 100%, fill: rgb("f1f5f9"), inset: 8pt, radius: 4pt)[
-  #text(size: 8.5pt, weight: "medium", fill: rgb("334155"))[
-    *Amount in words:* {{amount_in_words}}
+    #v(4pt)
+    #line(length: 100%, stroke: 0.5pt + rgb("cbd5e1"))
+    #v(4pt)
+    #align(left)[
+      #text(size: 8.5pt, fill: rgb("334155"))[
+        *Amount in words:* {{amount_in_words}}
+      ]
+    ]
   ]
 ]
 
