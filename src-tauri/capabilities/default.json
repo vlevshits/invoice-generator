@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables default permissions for SQL, Dialog, Opener and Store plugins",
+  "windows": [
+    "*"
+  ],
+  "permissions": [
+    "core:default",
+    "sql:default",
+    "dialog:default",
+    "opener:default",
+    "store:default"
+  ]
+}
