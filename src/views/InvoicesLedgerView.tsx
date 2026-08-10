@@ -280,8 +280,14 @@ export function InvoicesLedgerView() {
               ) : (
                 invoices.map((inv) => (
                   <TableRow key={inv.id} className="group">
-                    <TableCell className="font-mono font-semibold text-foreground">
-                      {inv.invoice_number}
+                    <TableCell className="font-mono font-semibold">
+                      <button
+                        onClick={() => startEditInvoice(inv)}
+                        className="text-primary hover:underline hover:text-emerald-400 font-mono font-bold transition-colors cursor-pointer text-left inline-flex items-center gap-1 group/btn"
+                        title="Click to view and edit invoice details"
+                      >
+                        {inv.invoice_number}
+                      </button>
                     </TableCell>
                     <TableCell>
                       <div className="font-medium text-foreground">
