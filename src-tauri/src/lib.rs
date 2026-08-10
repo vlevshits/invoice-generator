@@ -437,6 +437,7 @@ pub fn run() {
             tax_id TEXT NOT NULL,
             legal_address TEXT NOT NULL,
             default_currency TEXT NOT NULL DEFAULT 'GEL',
+            default_payment_terms TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -490,6 +491,11 @@ pub fn run() {
             amount REAL NOT NULL
         );
         ",
+        kind: MigrationKind::Up,
+    }, Migration {
+        version: 2,
+        description: "add_default_payment_terms_to_profiles",
+        sql: "ALTER TABLE profiles ADD COLUMN default_payment_terms TEXT;",
         kind: MigrationKind::Up,
     }];
 
