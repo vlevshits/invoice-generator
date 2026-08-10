@@ -1,6 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use tauri_plugin_sql::{Migration, MigrationKind};
@@ -290,6 +293,15 @@ pub struct OAuthTokens {
     pub expires_in: u64,
 }
 
+fn generate_pkce_pair() -> (String, String) {
+    let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk_custom_verifier_1234567890";
+    let mut hasher = Sha256::new();
+    hasher.update(verifier.as_bytes());
+    let hash = hasher.finalize();
+    let challenge = URL_SAFE_NO_PAD.encode(hash);
+    (verifier.to_string(), challenge)
+}
+
 #[tauri::command]
 async fn start_google_oauth(
     client_id: String,
@@ -301,10 +313,12 @@ async fn start_google_oauth(
     let server = tiny_http::Server::http(format!("127.0.0.1:{}", port))
         .map_err(|e| format!("Failed to bind local loopback server: {}", e))?;
 
+    let (code_verifier, code_challenge) = generate_pkce_pair();
+
     let scope = "https://www.googleapis.com/auth/drive.file";
     let auth_url = format!(
-        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent",
-        client_id, redirect_uri, scope
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent&code_challenge={}&code_challenge_method=S256",
+        client_id, redirect_uri, scope, code_challenge
     );
 
     let _ = open::that(&auth_url);
@@ -335,6 +349,7 @@ async fn start_google_oauth(
         ("code", code),
         ("grant_type", "authorization_code".to_string()),
         ("redirect_uri", redirect_uri),
+        ("code_verifier", code_verifier),
     ];
 
     if let Some(secret) = client_secret {
