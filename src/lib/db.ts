@@ -12,14 +12,20 @@ import type {
   InvoiceStatus,
 } from '@/types'
 import { autoSyncGoogleDriveIfConnected } from '@/lib/driveSync'
+import { runDrizzleMigrations } from '@/lib/migrator'
 
 let rawDbInstance: Database | null = null
 let drizzleDbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null
+let migrationsPromise: Promise<void> | null = null
 
 export async function getRawDb(): Promise<Database> {
   if (!rawDbInstance) {
     rawDbInstance = await Database.load('sqlite:invoices.db')
   }
+  if (!migrationsPromise) {
+    migrationsPromise = runDrizzleMigrations(rawDbInstance)
+  }
+  await migrationsPromise
   return rawDbInstance
 }
 
