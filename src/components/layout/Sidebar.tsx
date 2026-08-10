@@ -6,6 +6,7 @@ import {
   FileText,
   PlusCircle,
   Users,
+  LayoutTemplate,
   Settings,
   Sun,
   Moon,
@@ -18,6 +19,7 @@ export function Sidebar() {
   const navItems: { id: ActiveView; label: string; icon: any }[] = [
     { id: 'ledger', label: 'Invoices Ledger', icon: FileText },
     { id: 'counterparties', label: 'Counterparties', icon: Users },
+    { id: 'templates', label: 'Templates & Designs', icon: LayoutTemplate },
     { id: 'settings', label: 'Settings & Bank Accounts', icon: Settings },
   ]
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { InvoiceWithDetails } from '@/types'
 
-export type ActiveView = 'ledger' | 'builder' | 'counterparties' | 'settings'
+export type ActiveView = 'ledger' | 'builder' | 'counterparties' | 'templates' | 'settings'
 
 export const DEFAULT_GOOGLE_CLIENT_ID =
   (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) || ''

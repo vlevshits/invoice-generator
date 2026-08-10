@@ -6,6 +6,7 @@ import { useAppStore } from '@/store/useAppStore'
 import { InvoicesLedgerView } from '@/views/InvoicesLedgerView'
 import { InvoiceBuilderView } from '@/views/InvoiceBuilderView'
 import { CounterpartiesView } from '@/views/CounterpartiesView'
+import { TemplatesView } from '@/views/TemplatesView'
 import { SettingsView } from '@/views/SettingsView'
 
 const queryClient = new QueryClient({
@@ -27,6 +28,8 @@ export default function App() {
         return <InvoiceBuilderView />
       case 'counterparties':
         return <CounterpartiesView />
+      case 'templates':
+        return <TemplatesView />
       case 'settings':
         return <SettingsView />
       default:
