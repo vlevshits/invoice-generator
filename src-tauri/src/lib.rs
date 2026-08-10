@@ -318,7 +318,7 @@ async fn start_google_oauth(client_id: String) -> Result<OAuthTokens, String> {
             }
         }
 
-        let response_html = "<html><body style='font-family:sans-serif;text-align:center;padding-top:50px;'><h2>Google Drive Authorization Successful!</h2><p>You may now close this browser tab and return to the Privacy Invoice Generator app.</p></body></html>";
+        let response_html = "<html><body style='font-family:sans-serif;text-align:center;padding-top:50px;'><h2>Google Drive Authorization Successful!</h2><p>You may now close this browser tab and return to the Invoice Generator app.</p></body></html>";
         let response = tiny_http::Response::from_string(response_html)
             .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap());
         let _ = request.respond(response);

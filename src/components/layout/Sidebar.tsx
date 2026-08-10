@@ -35,7 +35,7 @@ export function Sidebar() {
             />
             <div>
               <h1 className="font-display font-bold text-sm text-foreground tracking-tight">
-                Privacy Invoice
+                Invoice Generator
               </h1>
               <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 <ShieldCheck className="h-3 w-3 text-emerald-500" />
