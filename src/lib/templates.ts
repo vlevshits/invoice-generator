@@ -35,7 +35,7 @@ export const INVOICE_TEMPLATES: InvoiceTemplate[] = [
     #v(2pt)
     #text(size: 8.5pt, fill: rgb("475569"))[
       Issue Date: {{issue_date}} \\
-      {{due_date}}
+      Due Date: {{due_date}}
     ]
   ]
 )
@@ -173,14 +173,12 @@ export const INVOICE_TEMPLATES: InvoiceTemplate[] = [
   ],
   [
     #rect(width: 100%, fill: rgb("f8fafc"), radius: 4pt, inset: 10pt)[
-      #grid(
-        columns: (1fr, 1fr),
-        row-gutter: 4pt,
-        [ *Issue Date:* ], [ {{issue_date}} ],
-        [ *Due Date:* ], [ {{due_date}} ],
-        [ *Bank:* ], [ {{bank_name}} ],
-        [ *IBAN:* ], [ #raw("{{bank_iban}}") ]
-      )
+      #text(size: 8.5pt, fill: rgb("334155"))[
+        *Issue Date:* {{issue_date}} \\
+        *Due Date:* {{due_date}} \\
+        *Bank:* {{bank_name}} \\
+        *IBAN:* #raw("{{bank_iban}}")
+      ]
     ]
   ]
 )
@@ -350,70 +348,125 @@ export const INVOICE_TEMPLATES: InvoiceTemplate[] = [
 `,
   },
   {
-    id: 'compact_minimal',
-    name: 'Compact Minimal',
-    description: 'High-density, space-efficient minimalist layout designed for multi-item invoices.',
-    badge: 'Compact',
-    accentColor: '#475569',
-    typstMarkup: `#set page(paper: "a4", margin: (x: 1.2cm, y: 1.2cm))
-#set text(size: 9pt)
-
-#grid(
-  columns: (1.4fr, 0.6fr),
-  align: (left, right),
-  [
-    #text(size: 13pt, weight: "bold")[{{seller_name}}] \\
-    #text(size: 8pt, fill: rgb("475569"))[Tax ID: {{seller_tax_id}} | {{seller_address}}]
-  ],
-  [
-    #text(size: 16pt, weight: "bold")[INVOICE] \\
-    #text(size: 9pt)[No. #raw("{{invoice_number}}")] \\
-    #text(size: 8pt, fill: rgb("475569"))[Date: {{issue_date}} | {{due_date}}]
+    id: 'formal_corporate',
+    name: 'Formal Corporate',
+    description: 'European / UK corporate standard layout with right-aligned seller header, centered bold INVOICE title, heavy table borders, and remittance box.',
+    badge: 'Formal',
+    accentColor: '#1e293b',
+    typstMarkup: `#set page(
+  paper: "a4",
+  margin: (x: 1.8cm, top: 2.0cm, bottom: 2.2cm),
+  footer: align(center)[
+    #text(size: 8pt, fill: rgb("475569"))[
+      Individual Entrepreneur {{seller_name}} | Registered Office: {{seller_address}} \\
+      Registered Tax ID / INN: {{seller_tax_id}}
+    ]
   ]
 )
-
-#v(6pt)
-#line(length: 100%, stroke: 0.5pt + rgb("cbd5e1"))
-#v(6pt)
-
-#grid(
-  columns: (1fr, 1fr),
-  gutter: 10pt,
-  [
-    #text(size: 8pt, weight: "bold", fill: rgb("475569"))[TO:] #text(weight: "bold")[{{buyer_name}}] (Tax ID: {{buyer_tax_id}}) \\
-    #text(size: 8pt, fill: rgb("475569"))[{{buyer_director}} {{buyer_address}}]
-  ],
-  [
-    #text(size: 8pt, weight: "bold", fill: rgb("475569"))[BANK:] {{bank_name}} | IBAN: #raw("{{bank_iban}}") | SWIFT: #raw("{{bank_swift}}") \\
-    #text(size: 8pt, fill: rgb("475569"))[{{intermediary_info}}]
-  ]
-)
-
-#v(8pt)
-
-#table(
-  columns: (1fr, 70pt, 75pt, 85pt),
-  align: (left, center, right, right),
-  fill: (x, y) => if y == 0 { rgb("f1f5f9") } else { none },
-  stroke: 0.3pt + rgb("cbd5e1"),
-  [ *Description* ], [ *Qty* ], [ *Price* ], [ *Amount* ],
-{{items_table_rows}})
-
-#v(8pt)
+#set text(size: 9.5pt)
 
 #align(right)[
-  #block(width: 280pt)[
-    #grid(
-      columns: (1fr, auto),
-      align: (left, right),
-      [ *Total:* ], [ *#text(size: 12pt, weight: "bold")[{{currency_symbol}}{{total_amount}}]* ]
-    )
-    #v(2pt)
-    #text(size: 8pt, fill: rgb("475569"))[*In Words:* {{amount_in_words}}]
-  ]
+  #text(weight: "bold", size: 10pt)[{{seller_name}}] \\
+  #v(2pt)
+  #text(size: 9pt, fill: rgb("334155"))[{{seller_address}}]
 ]
 
-{{notes}}
+#v(20pt)
+
+#align(center)[
+  #text(size: 14pt, weight: "bold")[INVOICE]
+]
+
+#v(15pt)
+
+#grid(
+  columns: (1.2fr, 0.8fr),
+  align: (left, right),
+  [
+    #text(weight: "bold", size: 10pt)[{{buyer_name}}] \\
+    #text(size: 9pt, fill: rgb("334155"))[
+      Tax ID: {{buyer_tax_id}} \\
+      {{buyer_director}}
+      {{buyer_address}}
+    ]
+  ],
+  [
+    #text(size: 9.5pt)[
+      *Invoice No.* {{invoice_number}} \\
+      *Invoice Date:* {{issue_date}} \\
+      *Due Date:* {{due_date}}
+    ]
+  ]
+)
+
+#v(15pt)
+
+#table(
+  columns: (1fr, 75pt, 80pt, 85pt),
+  align: (left, center, right, right),
+  stroke: 1pt + rgb("000000"),
+  [ *Description* ], [ *Quantity (Units)* ], [ *Unit Price* ], [ *Net Price* ],
+{{items_table_rows}})
+
+#v(4pt)
+
+#align(right)[
+  #table(
+    columns: (90pt, 95pt),
+    align: (right, right),
+    stroke: 1pt + rgb("000000"),
+    [ *NET Total* ], [ {{currency_symbol}}{{total_amount}} ],
+    [ *VAT* ], [ {{currency_symbol}}0.00 ],
+    [ *Gross Total* ], [ *#text(weight: "bold")[{{currency_symbol}}{{total_amount}}]* ]
+  )
+]
+
+#v(25pt)
+
+#rect(
+  width: 100%,
+  stroke: 1pt + rgb("000000"),
+  inset: 10pt
+)[
+  #text(size: 8.5pt)[
+    *Payment Terms:* \
+    Payments should be made within 20 working days of invoice using the following payment details: \
+    BENEFICIARY: {{bank_beneficiary}} \
+    BENEFICIARY BANK: {{bank_name}} \
+    IBAN: #raw("{{bank_iban}}") \
+    SWIFT/BIC: #raw("{{bank_swift}}") \
+    {{intermediary_info}}
+  ]
+]
 `,
   },
 ]
+
+export const CUSTOM_TEMPLATES_KEY = 'user_custom_invoice_templates'
+
+export function getCustomTemplates(): InvoiceTemplate[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_TEMPLATES_KEY)
+    if (!raw) return []
+    return JSON.parse(raw)
+  } catch (err) {
+    console.error('Failed to parse custom templates:', err)
+    return []
+  }
+}
+
+export function saveCustomTemplate(template: InvoiceTemplate): void {
+  const existing = getCustomTemplates()
+  const idx = existing.findIndex((t) => t.id === template.id)
+  if (idx >= 0) {
+    existing[idx] = template
+  } else {
+    existing.push(template)
+  }
+  localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(existing))
+}
+
+export function deleteCustomTemplate(id: string): void {
+  const existing = getCustomTemplates().filter((t) => t.id !== id)
+  localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(existing))
+}

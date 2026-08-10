@@ -1,54 +1,83 @@
 import { useState, useEffect } from 'react'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
+import { readFile } from '@tauri-apps/plugin-fs'
 import {
   INVOICE_TEMPLATES,
+  getCustomTemplates,
+  saveCustomTemplate,
+  deleteCustomTemplate,
   type InvoiceTemplate,
 } from '@/lib/templates'
 import { getProfile, saveProfile } from '@/lib/db'
 import type { Profile } from '@/types'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmDeleteModal } from '@/components/domain/ConfirmDeleteModal'
 import {
   LayoutTemplate,
   CheckCircle,
   Sparkles,
   FileCode,
   RotateCcw,
+  Plus,
+  Copy,
+  Trash2,
   Save,
   Loader2,
-  Copy,
   AlertCircle,
-  Building2,
 } from 'lucide-react'
 
 export function TemplatesView() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [customTemplates, setCustomTemplates] = useState<InvoiceTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<InvoiceTemplate>(INVOICE_TEMPLATES[0])
+  
+  // Active editing state
+  const [editingName, setEditingName] = useState<string>(INVOICE_TEMPLATES[0].name)
   const [editingMarkup, setEditingMarkup] = useState<string>(INVOICE_TEMPLATES[0].typstMarkup)
   const [isCompiling, setIsCompiling] = useState(false)
-  const [pdfPreviewPath, setPdfPreviewPath] = useState<string | null>(null)
+  const [svgPreview, setSvgPreview] = useState<string | null>(null)
   const [compileError, setCompileError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Load Profile to know which template is active
-  useEffect(() => {
-    const load = async () => {
-      const p = await getProfile()
-      setProfile(p)
-      if (p?.custom_typst_template) {
-        const matched = INVOICE_TEMPLATES.find(
-          (t) => t.typstMarkup.trim() === p.custom_typst_template?.trim()
-        )
-        if (matched) {
-          setSelectedTemplate(matched)
-          setEditingMarkup(matched.typstMarkup)
-        } else {
-          setEditingMarkup(p.custom_typst_template)
+  // Delete modal state
+  const [deleteTarget, setDeleteTarget] = useState<InvoiceTemplate | null>(null)
+
+  const reloadData = async () => {
+    const p = await getProfile()
+    setProfile(p)
+    const customList = getCustomTemplates()
+    setCustomTemplates(customList)
+
+    if (p?.custom_typst_template) {
+      const allTemplates = [...INVOICE_TEMPLATES, ...customList]
+      const matched = allTemplates.find(
+        (t) => t.typstMarkup.trim() === p.custom_typst_template?.trim()
+      )
+      if (matched) {
+        setSelectedTemplate(matched)
+        setEditingName(matched.name)
+        setEditingMarkup(matched.typstMarkup)
+      } else {
+        // Unmatched custom markup
+        const userCustom: InvoiceTemplate = {
+          id: 'active_custom',
+          name: 'Active Custom Template',
+          description: 'User saved custom template',
+          badge: 'Custom',
+          accentColor: '#6366f1',
+          typstMarkup: p.custom_typst_template,
         }
+        setSelectedTemplate(userCustom)
+        setEditingName(userCustom.name)
+        setEditingMarkup(p.custom_typst_template)
       }
     }
-    load()
+  }
+
+  useEffect(() => {
+    reloadData()
   }, [])
 
   // Sample data payload matching Rust GeneratePdfPayload struct
@@ -94,7 +123,7 @@ export function TemplatesView() {
     ],
   })
 
-  // Recompile PDF preview whenever editingMarkup changes
+  // Recompile Typst SVG preview whenever editingMarkup changes
   useEffect(() => {
     let timer: NodeJS.Timeout
     const compilePreview = async () => {
@@ -104,12 +133,8 @@ export function TemplatesView() {
 
       try {
         const payload = generateSamplePayload()
-        const rawPath: string = await invoke('generate_pdf_command', {
-          payload,
-          targetPath: null,
-        })
-        const assetUrl = convertFileSrc(rawPath)
-        setPdfPreviewPath(assetUrl)
+        const svg: string = await invoke('compile_typst_to_svg', { payload })
+        setSvgPreview(svg)
       } catch (err: any) {
         setCompileError(err.message || String(err))
       } finally {
@@ -123,7 +148,65 @@ export function TemplatesView() {
 
   const handleSelectTemplate = (t: InvoiceTemplate) => {
     setSelectedTemplate(t)
+    setEditingName(t.name)
     setEditingMarkup(t.typstMarkup)
+  }
+
+  const handleCreateNewCustom = () => {
+    const newId = `custom_${Date.now()}`
+    const newTemplate: InvoiceTemplate = {
+      id: newId,
+      name: `Custom Template ${customTemplates.length + 1}`,
+      description: 'Custom user-created invoice template',
+      badge: 'Custom',
+      accentColor: '#3b82f6',
+      typstMarkup: INVOICE_TEMPLATES[0].typstMarkup,
+    }
+    saveCustomTemplate(newTemplate)
+    setCustomTemplates(getCustomTemplates())
+    handleSelectTemplate(newTemplate)
+  }
+
+  const handleDuplicateTemplate = () => {
+    const newId = `custom_${Date.now()}`
+    const duplicated: InvoiceTemplate = {
+      id: newId,
+      name: `${selectedTemplate.name} (Copy)`,
+      description: `Copy of ${selectedTemplate.name}`,
+      badge: 'Custom',
+      accentColor: '#8b5cf6',
+      typstMarkup: editingMarkup,
+    }
+    saveCustomTemplate(duplicated)
+    setCustomTemplates(getCustomTemplates())
+    handleSelectTemplate(duplicated)
+  }
+
+  const handleSaveCustomChanges = () => {
+    if (!selectedTemplate.id.startsWith('custom_') && selectedTemplate.id !== 'active_custom') {
+      // If user edits a preset, auto-create a custom copy for them
+      handleDuplicateTemplate()
+      return
+    }
+
+    const updated: InvoiceTemplate = {
+      ...selectedTemplate,
+      name: editingName,
+      typstMarkup: editingMarkup,
+    }
+    saveCustomTemplate(updated)
+    setCustomTemplates(getCustomTemplates())
+    setSelectedTemplate(updated)
+    alert(`Custom template "${editingName}" saved successfully!`)
+  }
+
+  const handleConfirmDeleteCustom = () => {
+    if (!deleteTarget) return
+    deleteCustomTemplate(deleteTarget.id)
+    setDeleteTarget(null)
+    const freshCustoms = getCustomTemplates()
+    setCustomTemplates(freshCustoms)
+    handleSelectTemplate(INVOICE_TEMPLATES[0])
   }
 
   const handleSetActive = async () => {
@@ -136,7 +219,7 @@ export function TemplatesView() {
       })
       const fresh = await getProfile()
       setProfile(fresh)
-      alert(`Template "${selectedTemplate.name}" set as active for new invoices!`)
+      alert(`Template "${editingName}" set as active for new invoices!`)
     } catch (err: any) {
       alert('Error setting active template: ' + String(err))
     } finally {
@@ -146,11 +229,16 @@ export function TemplatesView() {
 
   const handleReset = () => {
     setEditingMarkup(selectedTemplate.typstMarkup)
+    setEditingName(selectedTemplate.name)
   }
 
+  const allTemplates = [...INVOICE_TEMPLATES, ...customTemplates]
   const isActive =
     profile?.custom_typst_template?.trim() === editingMarkup.trim() ||
     (!profile?.custom_typst_template && selectedTemplate.id === 'standard')
+
+  const isUserCustom =
+    selectedTemplate.id.startsWith('custom_') || selectedTemplate.id === 'active_custom'
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
@@ -159,10 +247,10 @@ export function TemplatesView() {
         <div>
           <h2 className="text-xl font-bold font-display tracking-tight text-foreground flex items-center gap-2">
             <LayoutTemplate className="h-5 w-5 text-primary" />
-            Invoice Templates & Designs
+            Invoice Templates Library
           </h2>
           <p className="text-xs text-muted-foreground">
-            Browse built-in layouts, customize Typst markup, and see real-time PDF previews.
+            Create, duplicate, edit custom layouts, and preview live Typst PDF output.
           </p>
         </div>
 
@@ -170,11 +258,21 @@ export function TemplatesView() {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleReset}
+            onClick={handleCreateNewCustom}
+            className="h-9 text-xs gap-1.5 font-semibold"
+          >
+            <Plus className="h-4 w-4 text-primary" />
+            New Custom Template
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDuplicateTemplate}
             className="h-9 text-xs gap-1.5"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset to Template Default
+            <Copy className="h-3.5 w-3.5" />
+            Duplicate
           </Button>
 
           <Button
@@ -196,15 +294,17 @@ export function TemplatesView() {
       <div className="grid grid-cols-12 flex-1 overflow-hidden">
         {/* Left Column: Template Cards + Code Editor */}
         <div className="col-span-12 lg:col-span-5 border-r border-border p-6 flex flex-col space-y-6 overflow-y-auto bg-card/50">
-          {/* Section 1: Template Presets Grid */}
+          {/* Section 1: Template Presets & Custom Templates Grid */}
           <div className="space-y-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Template Library Presets
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                Available Templates ({allTemplates.length})
+              </label>
+            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              {INVOICE_TEMPLATES.map((t) => {
+            <div className="grid grid-cols-2 gap-3 max-h-[285px] overflow-y-auto pr-1">
+              {allTemplates.map((t) => {
                 const isSelected = selectedTemplate.id === t.id
                 const isCurrentlyActive =
                   profile?.custom_typst_template?.trim() === t.typstMarkup.trim() ||
@@ -214,15 +314,15 @@ export function TemplatesView() {
                   <div
                     key={t.id}
                     onClick={() => handleSelectTemplate(t)}
-                    className={`cursor-pointer rounded-lg border p-3.5 transition-all flex flex-col justify-between relative ${
+                    className={`cursor-pointer rounded-lg border p-3 transition-all flex flex-col justify-between relative ${
                       isSelected
                         ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-xs'
                         : 'border-border bg-card hover:border-primary/40 hover:bg-muted/30'
                     }`}
                   >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 overflow-hidden">
                           <div
                             className="h-2.5 w-2.5 rounded-full shrink-0"
                             style={{ backgroundColor: t.accentColor }}
@@ -232,13 +332,13 @@ export function TemplatesView() {
                           </h4>
                         </div>
                       </div>
-                      <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                      <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">
                         {t.description}
                       </p>
                     </div>
 
-                    <div className="pt-2.5 mt-2 border-t border-border/40 flex items-center justify-between">
-                      <span className="text-[10px] font-mono text-muted-foreground">
+                    <div className="pt-2 mt-2 border-t border-border/40 flex items-center justify-between">
+                      <span className="text-[9px] font-mono text-muted-foreground">
                         {t.badge}
                       </span>
                       {isCurrentlyActive && (
@@ -253,25 +353,58 @@ export function TemplatesView() {
             </div>
           </div>
 
-          {/* Section 2: Code Editor */}
-          <div className="space-y-2.5 flex-1 flex flex-col min-h-[300px]">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <FileCode className="h-3.5 w-3.5 text-primary" />
-                Typst Markup Source Code
-              </label>
-
-              {isCompiling && (
-                <span className="text-xs text-emerald-400 font-mono flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Compiling...
-                </span>
+          {/* Section 2: Code & Template Settings Editor */}
+          <div className="space-y-3 flex-1 flex flex-col min-h-[300px]">
+            <div className="flex items-center justify-between gap-2">
+              {isUserCustom ? (
+                <Input
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  placeholder="Template Name..."
+                  className="font-semibold text-xs h-8 max-w-[200px]"
+                />
+              ) : (
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <FileCode className="h-3.5 w-3.5 text-primary" />
+                  Source Code: {selectedTemplate.name}
+                </label>
               )}
+
+              <div className="flex items-center gap-1.5">
+                {isUserCustom && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDeleteTarget(selectedTemplate)}
+                    className="h-7 text-xs text-destructive hover:text-destructive gap-1 px-2"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveCustomChanges}
+                  className="h-7 text-xs gap-1 px-2.5 font-semibold"
+                >
+                  <Save className="h-3.5 w-3.5 text-primary" />
+                  {isUserCustom ? 'Save Changes' : 'Save as Custom Copy'}
+                </Button>
+              </div>
             </div>
+
+            {isCompiling && (
+              <span className="text-[11px] text-emerald-400 font-mono flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Compiling live preview...
+              </span>
+            )}
 
             <textarea
               value={editingMarkup}
               onChange={(e) => setEditingMarkup(e.target.value)}
-              rows={16}
+              rows={14}
               className="w-full flex-1 rounded-md border border-input bg-muted/40 p-4 text-xs font-mono text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring leading-relaxed resize-none"
               placeholder="Edit Typst markup code..."
             />
@@ -283,7 +416,7 @@ export function TemplatesView() {
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-              Live PDF Preview Output ({selectedTemplate.name})
+              Live PDF Output Preview ({editingName})
             </span>
 
             {isActive && (
@@ -294,31 +427,43 @@ export function TemplatesView() {
           </div>
 
           {compileError ? (
-            <div className="flex-1 flex items-center justify-center p-8 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-xs font-mono">
+            <div className="flex-1 flex items-center justify-center p-8 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-xs font-mono overflow-auto">
               <div className="space-y-2 text-center max-w-md">
                 <AlertCircle className="h-8 w-8 mx-auto text-destructive" />
                 <p className="font-bold">Typst Compilation Error</p>
-                <p className="text-[11px] leading-relaxed">{compileError}</p>
+                <p className="text-[11px] leading-relaxed whitespace-pre-wrap">{compileError}</p>
               </div>
             </div>
-          ) : pdfPreviewPath ? (
-            <div className="flex-1 rounded-lg border border-border bg-card overflow-hidden shadow-lg">
-              <iframe
-                src={`${pdfPreviewPath}#toolbar=0&navpanes=0`}
-                className="w-full h-full border-none"
-                title="Live Invoice Template PDF Preview"
+          ) : svgPreview ? (
+            <div className="flex-1 rounded-lg border border-border bg-slate-950/80 p-6 overflow-y-auto shadow-2xl flex justify-center items-start">
+              <div
+                className="bg-white text-slate-900 rounded-sm shadow-2xl w-full max-w-[640px] p-1 overflow-hidden border border-slate-300 [&_svg]:w-full [&_svg]:h-auto [&_svg]:block"
+                dangerouslySetInnerHTML={{ __html: svgPreview }}
               />
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center bg-card border border-border rounded-lg">
               <div className="text-center space-y-2">
                 <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                <p className="text-xs text-muted-foreground">Rendering live Typst PDF preview...</p>
+                <p className="text-xs text-muted-foreground">Rendering live Typst vector preview...</p>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteTarget)}
+        title="Delete Custom Template"
+        description={
+          deleteTarget
+            ? `Are you sure you want to delete custom template "${deleteTarget.name}"? This action cannot be undone.`
+            : ''
+        }
+        onConfirm={handleConfirmDeleteCustom}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
@@ -71,7 +72,7 @@ async fn generate_pdf_command(
     payload: InvoicePayload,
     target_path: Option<String>,
 ) -> Result<String, String> {
-    let curr_sym = format_currency_symbol(&payload.currency);
+    let curr_sym = escape_typst_str(format_currency_symbol(&payload.currency));
 
     let mut items_typst = String::new();
     for item in &payload.items {
@@ -105,25 +106,17 @@ async fn generate_pdf_command(
 
     let notes = payload.notes.as_deref().unwrap_or("");
     let amount_in_words = escape_typst_str(&payload.amount_in_words);
-    let due_date_typst = if let Some(d) = payload.due_date.as_deref() {
-        if !d.trim().is_empty() {
-            format!("Due Date: {}", d)
-        } else {
-            String::new()
-        }
-    } else {
-        String::new()
-    };
+    let due_date_typst = payload.due_date.as_deref().unwrap_or("").to_string();
 
     let director_typst = if !buyer_director.is_empty() {
-        format!("Director / Rep: {} \\", escape_typst_str(buyer_director))
+        format!("Director / Rep: {}", escape_typst_str(buyer_director))
     } else {
         String::new()
     };
 
     let intermediary_typst = if !intermediary_bank.is_empty() {
         format!(
-            "Intermediary Bank: {} \\\n        Intermediary SWIFT: #raw(\"{}\") \\",
+            "Intermediary Bank: {} \\\n        Intermediary SWIFT: #raw(\"{}\")",
             escape_typst_str(intermediary_bank),
             escape_typst_str(intermediary_swift)
         )
@@ -158,7 +151,7 @@ async fn generate_pdf_command(
             .replace("{{bank_swift}}", &bank_swift)
             .replace("{{intermediary_info}}", &intermediary_typst)
             .replace("{{items_table_rows}}", &items_typst)
-            .replace("{{currency_symbol}}", curr_sym)
+            .replace("{{currency_symbol}}", &curr_sym)
             .replace("{{currency}}", &payload.currency)
             .replace("{{total_amount}}", &format!("{:.2}", payload.total_amount))
             .replace("{{amount_in_words}}", &amount_in_words)
@@ -318,6 +311,130 @@ async fn generate_pdf_command(
     }
 
     Ok(final_pdf_path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+async fn compile_typst_to_svg(
+    _app: AppHandle,
+    payload: InvoicePayload,
+) -> Result<String, String> {
+    let curr_sym = escape_typst_str(format_currency_symbol(&payload.currency));
+
+    let mut items_typst = String::new();
+    for item in &payload.items {
+        let desc = escape_typst_str(&item.description);
+        let unit = escape_typst_str(&item.unit);
+        let qty = item.quantity;
+        let price = item.unit_price;
+        let amount = item.amount;
+
+        items_typst.push_str(&format!(
+            "  [ {} ], [ {:.2} ({}) ], [ {}{:.2} ], [ {}{:.2} ],\n",
+            desc, qty, unit, curr_sym, price, curr_sym, amount
+        ));
+    }
+
+    let seller_name = escape_typst_str(&payload.seller_name);
+    let seller_tax_id = escape_typst_str(&payload.seller_tax_id);
+    let seller_address = escape_typst_str(&payload.seller_address);
+
+    let buyer_name = escape_typst_str(&payload.buyer_name);
+    let buyer_tax_id = escape_typst_str(&payload.buyer_tax_id);
+    let buyer_director = payload.buyer_director.as_deref().unwrap_or("");
+    let buyer_address = escape_typst_str(&payload.buyer_address);
+
+    let bank_name = escape_typst_str(&payload.bank_name);
+    let bank_beneficiary = escape_typst_str(&payload.bank_beneficiary);
+    let bank_iban = escape_typst_str(&payload.bank_iban);
+    let bank_swift = escape_typst_str(&payload.bank_swift);
+    let intermediary_bank = payload.intermediary_bank.as_deref().unwrap_or("");
+    let intermediary_swift = payload.intermediary_swift.as_deref().unwrap_or("");
+
+    let notes = payload.notes.as_deref().unwrap_or("");
+    let amount_in_words = escape_typst_str(&payload.amount_in_words);
+    let due_date_typst = payload.due_date.as_deref().unwrap_or("").to_string();
+
+    let director_typst = if !buyer_director.is_empty() {
+        format!("Director / Rep: {}", escape_typst_str(buyer_director))
+    } else {
+        String::new()
+    };
+
+    let intermediary_typst = if !intermediary_bank.is_empty() {
+        format!(
+            "Intermediary Bank: {} \\\n        Intermediary SWIFT: #raw(\"{}\")",
+            escape_typst_str(intermediary_bank),
+            escape_typst_str(intermediary_swift)
+        )
+    } else {
+        String::new()
+    };
+
+    let notes_typst = if !notes.is_empty() {
+        format!(
+            "#v(10pt)\n#text(size: 8pt, fill: rgb(\"64748b\"))[*Notes / Terms:* {}]",
+            escape_typst_str(notes)
+        )
+    } else {
+        String::new()
+    };
+
+    let typst_content = match &payload.custom_typst_template {
+        Some(tmpl) if !tmpl.trim().is_empty() => tmpl
+            .replace("{{seller_name}}", &seller_name)
+            .replace("{{seller_tax_id}}", &seller_tax_id)
+            .replace("{{seller_address}}", &seller_address)
+            .replace("{{invoice_number}}", &payload.invoice_number)
+            .replace("{{issue_date}}", &payload.issue_date)
+            .replace("{{due_date}}", &due_date_typst)
+            .replace("{{buyer_name}}", &buyer_name)
+            .replace("{{buyer_tax_id}}", &buyer_tax_id)
+            .replace("{{buyer_director}}", &director_typst)
+            .replace("{{buyer_address}}", &buyer_address)
+            .replace("{{bank_name}}", &bank_name)
+            .replace("{{bank_beneficiary}}", &bank_beneficiary)
+            .replace("{{bank_iban}}", &bank_iban)
+            .replace("{{bank_swift}}", &bank_swift)
+            .replace("{{intermediary_info}}", &intermediary_typst)
+            .replace("{{items_table_rows}}", &items_typst)
+            .replace("{{currency_symbol}}", &curr_sym)
+            .replace("{{currency}}", &payload.currency)
+            .replace("{{total_amount}}", &format!("{:.2}", payload.total_amount))
+            .replace("{{amount_in_words}}", &amount_in_words)
+            .replace("{{notes}}", &notes_typst),
+        _ => String::new(),
+    };
+
+    let temp_dir = std::env::temp_dir();
+    let file_id = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let temp_typ_path = temp_dir.join(format!("preview_{}.typ", file_id));
+    let temp_svg_path = temp_dir.join(format!("preview_{}.svg", file_id));
+
+    fs::write(&temp_typ_path, typst_content).map_err(|e| e.to_string())?;
+
+    let output = Command::new("typst")
+        .arg("compile")
+        .arg(&temp_typ_path)
+        .arg(&temp_svg_path)
+        .output()
+        .map_err(|e| format!("Failed to execute typst CLI: {}. Please ensure typst is installed.", e))?;
+
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        let _ = fs::remove_file(&temp_typ_path);
+        return Err(format!("Typst compilation error: {}", err_msg));
+    }
+
+    let svg_content = fs::read_to_string(&temp_svg_path)
+        .map_err(|e| format!("Failed to read compiled SVG preview: {}", e))?;
+
+    let _ = fs::remove_file(&temp_typ_path);
+    let _ = fs::remove_file(&temp_svg_path);
+
+    Ok(svg_content)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -786,6 +903,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             generate_pdf_command,
+            compile_typst_to_svg,
             start_google_oauth,
             upload_pdf_to_google_drive,
             get_or_create_drive_folder,
