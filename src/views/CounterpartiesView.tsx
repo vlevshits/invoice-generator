@@ -12,7 +12,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { Users, Plus, Search, Building2, Trash2, Edit, UserCheck } from 'lucide-react'
+import { Users, Plus, Search, Building2, Trash2, Edit, UserCheck, Mail } from 'lucide-react'
 
 export function CounterpartiesView() {
   const [counterparties, setCounterparties] = useState<Counterparty[]>([])
@@ -24,6 +24,7 @@ export function CounterpartiesView() {
   const [businessName, setBusinessName] = useState('')
   const [taxId, setTaxId] = useState('')
   const [directorName, setDirectorName] = useState('')
+  const [email, setEmail] = useState('')
   const [legalAddress, setLegalAddress] = useState('')
   const [actualAddress, setActualAddress] = useState('')
 
@@ -41,6 +42,7 @@ export function CounterpartiesView() {
     setBusinessName('')
     setTaxId('')
     setDirectorName('')
+    setEmail('')
     setLegalAddress('')
     setActualAddress('')
     setIsOpenModal(true)
@@ -51,6 +53,7 @@ export function CounterpartiesView() {
     setBusinessName(c.business_name)
     setTaxId(c.tax_id)
     setDirectorName(c.director_name || '')
+    setEmail(c.email || '')
     setLegalAddress(c.legal_address)
     setActualAddress(c.actual_address || '')
     setIsOpenModal(true)
@@ -64,6 +67,7 @@ export function CounterpartiesView() {
       business_name: businessName,
       tax_id: taxId,
       director_name: directorName || undefined,
+      email: email || undefined,
       legal_address: legalAddress,
       actual_address: actualAddress || undefined,
     })
@@ -83,6 +87,7 @@ export function CounterpartiesView() {
     (c) =>
       c.business_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.tax_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (c.director_name && c.director_name.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
@@ -141,6 +146,13 @@ export function CounterpartiesView() {
                 <p>
                   <span className="font-semibold text-foreground">Director / Rep:</span>{' '}
                   {c.director_name}
+                </p>
+              )}
+              {c.email && (
+                <p className="flex items-center gap-1">
+                  <Mail className="h-3 w-3 text-indigo-400 shrink-0" />
+                  <span className="font-semibold text-foreground">Email:</span>{' '}
+                  <span className="font-mono text-indigo-300">{c.email}</span>
                 </p>
               )}
               <p>
@@ -216,6 +228,15 @@ export function CounterpartiesView() {
                   onChange={(e) => setDirectorName(e.target.value)}
                 />
               </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Email Address (Optional)</label>
+              <Input
+                type="email"
+                placeholder="e.g. billing@client.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Legal Address *</label>
