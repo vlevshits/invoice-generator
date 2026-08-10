@@ -360,11 +360,11 @@ export function InvoiceBuilderView() {
               onClick={() => handleStateTransition(t)}
               className={
                 t.targetStatus === 'PAID'
-                  ? 'h-9 px-4 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-xs gap-1.5'
+                  ? 'h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs gap-1.5'
                   : 'h-9 px-4 text-xs font-semibold border border-border bg-card text-foreground hover:bg-accent gap-1.5'
               }
             >
-              {t.targetStatus === 'PAID' && <CheckCircle2 className="h-4 w-4 text-slate-950" />}
+              {t.targetStatus === 'PAID' && <CheckCircle2 className="h-4 w-4 text-white" />}
               {t.targetStatus === 'DRAFT' && <RotateCcw className="h-4 w-4 text-muted-foreground" />}
               {t.label}
             </Button>
@@ -374,7 +374,7 @@ export function InvoiceBuilderView() {
             variant="outline"
             onClick={() => handleSaveInvoice()}
             disabled={isSaving}
-            className="h-9 px-4 text-xs font-semibold gap-1.5"
+            className="h-9 px-4 text-xs font-semibold gap-1.5 text-foreground"
           >
             <Save className="h-4 w-4 text-muted-foreground" />
             Save Draft
@@ -383,14 +383,14 @@ export function InvoiceBuilderView() {
           <Button
             variant="outline"
             onClick={handleSendEmail}
-            className="h-9 px-4 text-xs font-semibold border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/10 gap-1.5"
+            className="h-9 px-4 text-xs font-semibold gap-1.5 text-foreground"
           >
             <Mail className="h-4 w-4 text-indigo-400" />
             Send via Email
           </Button>
 
-          <Button onClick={handleExportPdf} className="h-9 px-4 text-xs font-semibold shadow-xs gap-1.5">
-            <Download className="h-4 w-4" />
+          <Button onClick={handleExportPdf} className="h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs gap-1.5">
+            <Download className="h-4 w-4 text-white" />
             Export & Save PDF
           </Button>
         </div>
