@@ -489,14 +489,6 @@ pub fn run() {
             quantity REAL NOT NULL,
             amount REAL NOT NULL
         );
-
-        INSERT INTO profiles (id, business_name, tax_id, legal_address, default_currency)
-        SELECT 1, 'Your Business Name', '123456789', '123 Main Street, Suite 100, City, Country', 'GEL'
-        WHERE NOT EXISTS (SELECT 1 FROM profiles WHERE id = 1);
-
-        INSERT INTO bank_accounts (id, profile_id, account_label, beneficiary_name, bank_name, bank_address, iban, swift_bic, is_default)
-        SELECT 1, 1, 'Main Bank Account GEL', 'Your Business Name', 'Bank of Georgia', 'Tbilisi, Georgia', 'GE00BG0000000000000000', 'BAGAGE22', 1
-        WHERE NOT EXISTS (SELECT 1 FROM bank_accounts WHERE id = 1);
         ",
         kind: MigrationKind::Up,
     }];
