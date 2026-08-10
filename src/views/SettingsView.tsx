@@ -190,10 +190,10 @@ export function SettingsView() {
   const loadData = async () => {
     const [p, bList] = await Promise.all([getProfile(), getBankAccounts()])
     if (p) {
-      setBusinessName(p.business_name)
-      setTaxId(p.tax_id)
-      setLegalAddress(p.legal_address)
-      setDefaultCurrency(p.default_currency)
+      setBusinessName(p.business_name || '')
+      setTaxId(p.tax_id || '')
+      setLegalAddress(p.legal_address || '')
+      setDefaultCurrency(p.default_currency || 'GEL')
       setDefaultPaymentTerms(p.default_payment_terms || '')
       setCustomTypstTemplate(p.custom_typst_template || DEFAULT_TYPST_TEMPLATE)
     } else {
@@ -207,16 +207,20 @@ export function SettingsView() {
   }, [])
 
   const handleSaveProfile = async () => {
-    await saveProfile({
-      business_name: businessName,
-      tax_id: taxId,
-      legal_address: legalAddress,
-      default_currency: defaultCurrency,
-      default_payment_terms: defaultPaymentTerms,
-      custom_typst_template: customTypstTemplate,
-    })
-    alert('Settings & Invoice Template updated successfully!')
-    loadData()
+    try {
+      await saveProfile({
+        business_name: businessName,
+        tax_id: taxId,
+        legal_address: legalAddress,
+        default_currency: defaultCurrency,
+        default_payment_terms: defaultPaymentTerms,
+        custom_typst_template: customTypstTemplate,
+      })
+      alert('Profile & Settings saved successfully!')
+      await loadData()
+    } catch (err: any) {
+      alert('Error saving profile settings: ' + String(err))
+    }
   }
 
   const handleResetTemplate = () => {
@@ -227,8 +231,8 @@ export function SettingsView() {
 
   const handleOpenAddBank = () => {
     setEditingBankId(null)
-    setAccountLabel('Bank of Georgia EUR')
-    setBeneficiaryName(businessName || 'Your Business Name')
+    setAccountLabel('')
+    setBeneficiaryName(businessName || '')
     setBankName('')
     setBankAddress('')
     setIban('')
@@ -254,29 +258,41 @@ export function SettingsView() {
   }
 
   const handleSaveBank = async () => {
-    if (!accountLabel || !beneficiaryName || !bankName || !iban || !swiftBic) return
+    if (!accountLabel || !beneficiaryName || !bankName || !iban || !swiftBic) {
+      alert('Please fill out all required bank account fields (*)')
+      return
+    }
 
-    await saveBankAccount({
-      id: editingBankId || undefined,
-      account_label: accountLabel,
-      beneficiary_name: beneficiaryName,
-      bank_name: bankName,
-      bank_address: bankAddress || undefined,
-      iban: iban,
-      swift_bic: swiftBic,
-      intermediary_bank_name: intermediaryBankName || undefined,
-      intermediary_swift: intermediarySwift || undefined,
-      is_default: isDefaultBank,
-    })
+    try {
+      await saveBankAccount({
+        id: editingBankId || undefined,
+        account_label: accountLabel,
+        beneficiary_name: beneficiaryName,
+        bank_name: bankName,
+        bank_address: bankAddress || undefined,
+        iban: iban,
+        swift_bic: swiftBic,
+        intermediary_bank_name: intermediaryBankName || undefined,
+        intermediary_swift: intermediarySwift || undefined,
+        is_default: isDefaultBank,
+      })
 
-    setIsOpenBankModal(false)
-    loadData()
+      setIsOpenBankModal(false)
+      await loadData()
+      alert('Bank account saved successfully!')
+    } catch (err: any) {
+      alert('Error saving bank account: ' + String(err))
+    }
   }
 
   const handleDeleteBank = async (id: number) => {
     if (confirm('Delete this bank account?')) {
-      await deleteBankAccount(id)
-      loadData()
+      try {
+        await deleteBankAccount(id)
+        await loadData()
+      } catch (err: any) {
+        alert('Error deleting bank account: ' + String(err))
+      }
     }
   }
 

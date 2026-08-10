@@ -122,7 +122,11 @@ export async function getBankAccounts(): Promise<BankAccount[]> {
 
 export async function saveBankAccount(account: Partial<BankAccount>): Promise<void> {
   const tauriDb = await getRawDb()
-  const profile = await getProfile()
+  let profile = await getProfile()
+  if (!profile) {
+    await saveProfile({ business_name: '', tax_id: '', legal_address: '', default_currency: 'GEL' })
+    profile = await getProfile()
+  }
   const profileId = profile ? profile.id : 1
 
   if (account.is_default) {
