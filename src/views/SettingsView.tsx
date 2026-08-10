@@ -113,7 +113,7 @@ export const DEFAULT_TYPST_TEMPLATE = `#set page(paper: "a4", margin: (x: 1.5cm,
 #v(12pt)
 
 #align(right)[
-  #block(width: 320pt, fill: rgb("f8fafc"), stroke: 0.5pt + rgb("e2e8f0"), inset: 10pt, radius: 4pt)[
+  #block(width: 320pt)[
     #grid(
       columns: (1fr, auto),
       align: (left, right),
@@ -121,7 +121,7 @@ export const DEFAULT_TYPST_TEMPLATE = `#set page(paper: "a4", margin: (x: 1.5cm,
       [ *Grand Total:* ], [ *#text(size: 13pt, weight: "bold", fill: rgb("10b981"))[{{currency_symbol}}{{total_amount}}]* ]
     )
     #v(4pt)
-    #line(length: 100%, stroke: 0.5pt + rgb("cbd5e1"))
+    #line(length: 100%, stroke: 0.5pt + rgb("e2e8f0"))
     #v(4pt)
     #align(left)[
       #text(size: 8.5pt, fill: rgb("334155"))[

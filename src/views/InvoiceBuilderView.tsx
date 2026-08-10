@@ -630,9 +630,9 @@ export function InvoiceBuilderView() {
               </table>
             </div>
 
-            {/* Combined Total Summary Card */}
+            {/* Combined Total Summary */}
             <div className="flex justify-end pt-2">
-              <div className="w-80 p-3.5 bg-muted/40 border border-border rounded-lg space-y-2">
+              <div className="w-80 space-y-2">
                 <div className="flex justify-between items-center font-bold text-sm">
                   <span className="text-foreground">Grand Total:</span>
                   <span className="text-emerald-500 font-mono text-base">
@@ -640,7 +640,7 @@ export function InvoiceBuilderView() {
                     {totalAmount.toFixed(2)}
                   </span>
                 </div>
-                <div className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+                <div className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground text-left">
                   <span className="font-semibold text-foreground">Amount in words:</span>{' '}
                   {amountInWords}
                 </div>
