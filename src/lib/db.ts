@@ -29,6 +29,18 @@ export async function getRawDb(): Promise<Database> {
   return rawDbInstance
 }
 
+function extractSelectColumns(sql: string): string[] | null {
+  const match = sql.match(/^select\s+(.+?)\s+from\s+/i)
+  if (!match) return null
+  const colsStr = match[1]
+  return colsStr.split(',').map((c) => {
+    const trimmed = c.trim()
+    const parts = trimmed.split(/\s+as\s+/i)
+    const colName = parts[parts.length - 1]
+    return colName.replace(/["`]/g, '').split('.').pop()!
+  })
+}
+
 export async function getDb() {
   if (!drizzleDbInstance) {
     const rawDb = await getRawDb()
@@ -39,14 +51,24 @@ export async function getDb() {
             await rawDb.execute(sql, params)
             return { rows: [] }
           }
-          const rows = await rawDb.select<any[]>(sql, params)
+          const rows = await rawDb.select<Record<string, any>[]>(sql, params)
           if (!rows || rows.length === 0) {
             return { rows: [] }
           }
+
+          const selectCols = extractSelectColumns(sql)
+
+          const mappedRows = rows.map((r) => {
+            if (selectCols && selectCols.length > 0) {
+              return selectCols.map((col) => (r[col] !== undefined ? r[col] : null))
+            }
+            return Object.values(r)
+          })
+
           if (method === 'get') {
-            return { rows: [Object.values(rows[0])] }
+            return { rows: [mappedRows[0]] }
           }
-          return { rows: rows.map((r) => Object.values(r)) }
+          return { rows: mappedRows }
         } catch (e) {
           console.error('Error in Drizzle SQLite proxy query:', e)
           return { rows: [] }
