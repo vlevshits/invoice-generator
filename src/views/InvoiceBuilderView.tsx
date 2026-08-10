@@ -354,39 +354,42 @@ export function InvoiceBuilderView() {
 
         <div className="flex items-center gap-2">
           {/* State Machine Action Controls */}
-          <div className="flex items-center gap-1.5 mr-2">
-            {validTransitions.map((t) => (
-              <Button
-                key={t.targetStatus}
-                variant={t.variant}
-                size="sm"
-                onClick={() => handleStateTransition(t)}
-                className="h-8 text-xs font-semibold"
-              >
-                {t.targetStatus === 'PAID' && <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-400" />}
-                {t.targetStatus === 'DRAFT' && <RotateCcw className="h-3.5 w-3.5 mr-1" />}
-                {t.label}
-              </Button>
-            ))}
-          </div>
+          {validTransitions.map((t) => (
+            <Button
+              key={t.targetStatus}
+              onClick={() => handleStateTransition(t)}
+              className={
+                t.targetStatus === 'PAID'
+                  ? 'h-9 px-4 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-xs gap-1.5'
+                  : 'h-9 px-4 text-xs font-semibold border border-border bg-card text-foreground hover:bg-accent gap-1.5'
+              }
+            >
+              {t.targetStatus === 'PAID' && <CheckCircle2 className="h-4 w-4 text-slate-950" />}
+              {t.targetStatus === 'DRAFT' && <RotateCcw className="h-4 w-4 text-muted-foreground" />}
+              {t.label}
+            </Button>
+          ))}
 
-          <DriveSyncBadge invoiceNumber={invoiceNumber} pdfPath={generatedPdfPath || undefined} />
-
-          <Button variant="outline" onClick={() => handleSaveInvoice()} disabled={isSaving} className="gap-1.5">
-            <Save className="h-4 w-4 text-slate-400" />
+          <Button
+            variant="outline"
+            onClick={() => handleSaveInvoice()}
+            disabled={isSaving}
+            className="h-9 px-4 text-xs font-semibold gap-1.5"
+          >
+            <Save className="h-4 w-4 text-muted-foreground" />
             Save Draft
           </Button>
 
           <Button
             variant="outline"
             onClick={handleSendEmail}
-            className="gap-1.5 text-xs border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/10 font-semibold"
+            className="h-9 px-4 text-xs font-semibold border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/10 gap-1.5"
           >
             <Mail className="h-4 w-4 text-indigo-400" />
             Send via Email
           </Button>
 
-          <Button onClick={handleExportPdf} className="gap-1.5 shadow-sm">
+          <Button onClick={handleExportPdf} className="h-9 px-4 text-xs font-semibold shadow-xs gap-1.5">
             <Download className="h-4 w-4" />
             Export & Save PDF
           </Button>
