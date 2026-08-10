@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import {
   INVOICE_TEMPLATES,
   type InvoiceTemplate,
@@ -37,7 +37,6 @@ export function TemplatesView() {
       const p = await getProfile()
       setProfile(p)
       if (p?.custom_typst_template) {
-        // Match existing markup with preset if available
         const matched = INVOICE_TEMPLATES.find(
           (t) => t.typstMarkup.trim() === p.custom_typst_template?.trim()
         )
@@ -45,7 +44,6 @@ export function TemplatesView() {
           setSelectedTemplate(matched)
           setEditingMarkup(matched.typstMarkup)
         } else {
-          // User has custom template
           setEditingMarkup(p.custom_typst_template)
         }
       }
@@ -53,7 +51,7 @@ export function TemplatesView() {
     load()
   }, [])
 
-  // Sample data payload for live preview compilation
+  // Sample data payload matching Rust GeneratePdfPayload struct
   const generateSamplePayload = () => ({
     seller_name: profile?.business_name || 'Teknos Solutions LLC',
     seller_tax_id: profile?.tax_id || '987654321',
@@ -65,29 +63,33 @@ export function TemplatesView() {
     buyer_tax_id: '123456789',
     buyer_director: 'Johnathan Doe (Director)',
     buyer_address: '100 Technology Plaza, San Francisco, CA',
-    bank_name: 'Bank of Georgia',
+    bank_account_label: 'Main Corporate Account',
     bank_beneficiary: profile?.business_name || 'Teknos Solutions LLC',
+    bank_name: 'Bank of Georgia',
+    bank_address: 'Tbilisi, Georgia',
     bank_iban: 'GE29BG0000000123456789',
     bank_swift: 'BAGAGE22',
-    intermediary_info: 'Intermediary: Citibank N.A. (CITIUS33)',
-    currency_symbol: '$',
-    total_amount: '4,250.00',
+    intermediary_bank: 'Citibank N.A.',
+    intermediary_swift: 'CITIUS33',
+    currency: 'USD',
+    total_amount: 4250.0,
     amount_in_words: 'Four Thousand Two Hundred Fifty US Dollars',
     notes: 'Payment is due within 15 days of invoice date. Thank you for your business!',
+    custom_typst_template: editingMarkup,
     items: [
       {
         description: 'Software Engineering & Architecture Services (Sprint 12)',
         unit: 'hrs',
-        unit_price: 125,
-        quantity: 30,
-        amount: 3750,
+        unit_price: 125.0,
+        quantity: 30.0,
+        amount: 3750.0,
       },
       {
         description: 'Cloud Infrastructure & Automated CI/CD Pipeline Setup',
         unit: 'fixed',
-        unit_price: 500,
-        quantity: 1,
-        amount: 500,
+        unit_price: 500.0,
+        quantity: 1.0,
+        amount: 500.0,
       },
     ],
   })
@@ -102,29 +104,20 @@ export function TemplatesView() {
 
       try {
         const payload = generateSamplePayload()
-        const path: string = await invoke('compile_typst_template_preview_command', {
-          template: editingMarkup,
+        const rawPath: string = await invoke('generate_pdf_command', {
           payload,
+          targetPath: null,
         })
-        setPdfPreviewPath(path)
+        const assetUrl = convertFileSrc(rawPath)
+        setPdfPreviewPath(assetUrl)
       } catch (err: any) {
-        // Fallback to standard preview compile command if custom command doesn't exist
-        try {
-          const payload = generateSamplePayload()
-          const path: string = await invoke('compile_typst_template', {
-            template: editingMarkup,
-            payload,
-          })
-          setPdfPreviewPath(path)
-        } catch (innerErr: any) {
-          setCompileError(innerErr.message || String(innerErr))
-        }
+        setCompileError(err.message || String(err))
       } finally {
         setIsCompiling(false)
       }
     }
 
-    timer = setTimeout(compilePreview, 400)
+    timer = setTimeout(compilePreview, 350)
     return () => clearTimeout(timer)
   }, [editingMarkup, profile])
 
