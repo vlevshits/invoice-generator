@@ -1,12 +1,12 @@
 # Invoice Generator
 
-A privacy-first, desktop application for creating, managing, and exporting professional invoices. Built with **Tauri v2**, **React 19**, **TypeScript**, **Tailwind CSS v4**, **SQLite (Drizzle ORM)**, and **Typst CLI**.
+A desktop application for creating, managing, and exporting professional invoices. Built with **Tauri v2**, **React 19**, **TypeScript**, **Tailwind CSS v4**, **SQLite (Drizzle ORM)**, and **Typst CLI**.
 
 ---
 
 ## Features
 
-- 🔒 **Local & Privacy-First**: All business profiles, bank accounts, counterparties, invoices, and custom templates are stored locally in an embedded SQLite database (`invoices.db`).
+- 💻 **Local On-Device Storage**: All business profiles, bank accounts, counterparties, invoices, and custom templates are stored locally in an embedded SQLite database (`invoices.db`).
 - 🎨 **Typst Template System & Live Vector Preview**:
   - 4 built-in presets (*Standard Professional*, *Modern Emerald*, *Executive Indigo*, *Formal Corporate*).
   - Live vector SVG preview hot-reloading as you edit Typst markup or invoice details.
