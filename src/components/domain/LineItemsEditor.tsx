@@ -21,13 +21,22 @@ export function LineItemsEditor({
   ) => {
     const updated = items.map((item, i) => {
       if (i !== index) return item
-      const newItem = { ...item, [field]: value }
 
+      let parsedVal: any = value
       if (field === 'quantity' || field === 'unit_price') {
-        const qty = field === 'quantity' ? Number(value) || 0 : item.quantity
-        const price = field === 'unit_price' ? Number(value) || 0 : item.unit_price
-        newItem.amount = Number((qty * price).toFixed(2))
+        if (value === '' || value === null || value === undefined) {
+          parsedVal = 0
+        } else {
+          const num = parseFloat(value)
+          parsedVal = isNaN(num) ? 0 : num
+        }
       }
+
+      const newItem = { ...item, [field]: parsedVal }
+
+      const qty = typeof newItem.quantity === 'number' ? newItem.quantity : parseFloat(newItem.quantity) || 0
+      const price = typeof newItem.unit_price === 'number' ? newItem.unit_price : parseFloat(newItem.unit_price) || 0
+      newItem.amount = Number((qty * price).toFixed(2))
 
       return newItem
     })
@@ -54,8 +63,6 @@ export function LineItemsEditor({
     onChange(updated)
   }
 
-  const currencySymbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency === 'GBP' ? '£' : 'GEL '
-
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -78,80 +85,82 @@ export function LineItemsEditor({
         {items.map((item, index) => (
           <div
             key={index}
-            className="grid grid-cols-12 gap-2 items-center rounded-md border border-border/80 bg-card p-2.5 text-xs shadow-2xs transition-all hover:border-border"
+            className="rounded-md border border-border/80 bg-card p-3 text-xs shadow-2xs transition-all hover:border-border space-y-2"
           >
-            <div className="col-span-5 space-y-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase">
-                Description #{index + 1}
-              </span>
-              <Input
-                placeholder="e.g. Software Development Services"
-                value={item.description}
-                onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-              />
+            <div className="grid grid-cols-12 gap-2.5 items-center">
+              <div className="col-span-4 space-y-1">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase block whitespace-nowrap">
+                  Description #{index + 1}
+                </span>
+                <Input
+                  placeholder="e.g. Software Development Services"
+                  value={item.description}
+                  onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                />
+              </div>
+
+              <div className="col-span-2 space-y-1">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase block whitespace-nowrap">
+                  Unit
+                </span>
+                <select
+                  value={item.unit}
+                  onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-card px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="Services">Services</option>
+                  <option value="Hours">Hours</option>
+                  <option value="Units">Units</option>
+                  <option value="Pcs">Pcs</option>
+                  <option value="Days">Days</option>
+                </select>
+              </div>
+
+              <div className="col-span-2 space-y-1">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase block whitespace-nowrap">
+                  Qty
+                </span>
+                <Input
+                  mono
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={item.quantity === 0 ? '' : item.quantity}
+                  onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                />
+              </div>
+
+              <div className="col-span-3 space-y-1">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase block whitespace-nowrap">
+                  Unit Price ({currency})
+                </span>
+                <Input
+                  mono
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={item.unit_price === 0 ? '' : item.unit_price}
+                  onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
+                />
+              </div>
+
+              <div className="col-span-1 flex items-end justify-center pt-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  onClick={() => handleRemoveItem(index)}
+                  disabled={items.length <= 1}
+                  title="Remove item"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
-            <div className="col-span-2 space-y-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase">
-                Unit
-              </span>
-              <select
-                value={item.unit}
-                onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                className="w-full h-9 rounded-md border border-input bg-card px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="Services">Services</option>
-                <option value="Hours">Hours</option>
-                <option value="Units">Units</option>
-                <option value="Pcs">Pcs</option>
-                <option value="Days">Days</option>
-              </select>
-            </div>
-
-            <div className="col-span-2 space-y-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase">
-                Qty
-              </span>
-              <Input
-                mono
-                type="number"
-                step="0.1"
-                min="0"
-                value={item.quantity}
-                onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-              />
-            </div>
-
-            <div className="col-span-2 space-y-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase">
-                Unit Price ({currency})
-              </span>
-              <Input
-                mono
-                type="number"
-                step="0.01"
-                min="0"
-                value={item.unit_price}
-                onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
-              />
-            </div>
-
-            <div className="col-span-1 flex items-end justify-center pt-4">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                onClick={() => handleRemoveItem(index)}
-                disabled={items.length <= 1}
-                title="Remove item"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="col-span-12 flex justify-end text-[11px] text-muted-foreground pt-1 border-t border-border/40 font-mono">
-              Row Total: <span className="font-semibold text-emerald-500 ml-1">{currencySymbol}{item.amount.toFixed(2)}</span>
+            <div className="flex justify-end text-[11px] text-muted-foreground font-mono pt-1 border-t border-border/40">
+              Row Total: <span className="font-bold text-emerald-500 ml-1.5">{currency} {item.amount.toFixed(2)}</span>
             </div>
           </div>
         ))}

@@ -9,27 +9,37 @@ const tens = [
 ]
 
 function convertChunk(num: number): string {
+  if (isNaN(num) || num <= 0) return ''
   let str = ''
   if (num >= 100) {
-    str += units[Math.floor(num / 100)] + ' hundred '
+    const hundredIdx = Math.floor(num / 100)
+    if (units[hundredIdx]) {
+      str += units[hundredIdx] + ' hundred '
+    }
     num %= 100
   }
   if (num >= 20) {
-    str += tens[Math.floor(num / 10)]
-    if (num % 10 > 0) {
+    const tenIdx = Math.floor(num / 10)
+    if (tens[tenIdx]) {
+      str += tens[tenIdx]
+    }
+    if (num % 10 > 0 && units[num % 10]) {
       str += '-' + units[num % 10]
     }
-  } else if (num > 0) {
+  } else if (num > 0 && units[num]) {
     str += units[num]
   }
   return str.trim()
 }
 
 export function numberToWords(amount: number, currency: string = 'GEL'): string {
-  if (amount === 0) return `Zero ${currency}`
+  if (isNaN(amount) || !isFinite(amount) || amount === 0) {
+    return `Zero ${currency.toUpperCase()}`
+  }
 
-  const intPart = Math.floor(Math.abs(amount))
-  const centsPart = Math.round((Math.abs(amount) - intPart) * 100)
+  const absAmount = Math.abs(amount)
+  const intPart = Math.floor(absAmount)
+  const centsPart = Math.round((absAmount - intPart) * 100)
 
   let words = ''
 
@@ -52,7 +62,6 @@ export function numberToWords(amount: number, currency: string = 'GEL'): string 
   }
 
   words = words.trim()
-  // Capitalize first letter of words
   if (words.length > 0) {
     words = words.charAt(0).toUpperCase() + words.slice(1)
   }
