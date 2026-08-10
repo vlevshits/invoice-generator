@@ -129,41 +129,43 @@ export function CounterpartiesView() {
         {filtered.map((c) => (
           <Card key={c.id} className="relative group hover:border-primary/50 transition-all">
             <CardHeader className="py-4">
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center text-primary font-bold">
-                    <Building2 className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">{c.business_name}</CardTitle>
-                    <p className="text-xs text-muted-foreground font-mono">Tax ID: {c.tax_id}</p>
-                  </div>
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-base truncate" title={c.business_name}>
+                    {c.business_name}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground font-mono">Tax ID: {c.tax_id}</p>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-2 text-xs py-2 text-muted-foreground">
+            <CardContent className="space-y-2.5 text-xs py-2">
               {c.director_name && (
-                <p>
-                  <span className="font-semibold text-foreground">Director / Rep:</span>{' '}
-                  {c.director_name}
-                </p>
+                <div>
+                  <span className="font-semibold text-foreground text-xs block">Director / Rep</span>
+                  <p className="text-muted-foreground">{c.director_name}</p>
+                </div>
               )}
               {c.email && (
-                <p className="flex items-center gap-1">
-                  <Mail className="h-3 w-3 text-indigo-400 shrink-0" />
-                  <span className="font-semibold text-foreground">Email:</span>{' '}
-                  <span className="font-mono text-indigo-300">{c.email}</span>
-                </p>
+                <div>
+                  <span className="font-semibold text-foreground text-xs block">Email</span>
+                  <p className="font-mono text-indigo-400 flex items-center gap-1">
+                    <Mail className="h-3 w-3 shrink-0" />
+                    {c.email}
+                  </p>
+                </div>
               )}
-              <p>
-                <span className="font-semibold text-foreground">Legal Address:</span>{' '}
-                {c.legal_address}
-              </p>
+              <div>
+                <span className="font-semibold text-foreground text-xs block">Legal Address</span>
+                <p className="text-muted-foreground leading-relaxed">{c.legal_address}</p>
+              </div>
               {c.actual_address && (
-                <p>
-                  <span className="font-semibold text-foreground">Actual Address:</span>{' '}
-                  {c.actual_address}
-                </p>
+                <div>
+                  <span className="font-semibold text-foreground text-xs block">Actual Address</span>
+                  <p className="text-muted-foreground leading-relaxed">{c.actual_address}</p>
+                </div>
               )}
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/60">
