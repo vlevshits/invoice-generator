@@ -43,9 +43,12 @@ import {
   RefreshCw,
   FolderSync,
   ExternalLink,
+  LayoutTemplate,
 } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { ConfirmDeleteModal } from '@/components/domain/ConfirmDeleteModal'
+import { TemplateLibraryModal } from '@/components/domain/TemplateLibraryModal'
+import { INVOICE_TEMPLATES } from '@/lib/templates'
 
 export const DEFAULT_TYPST_TEMPLATE = `#set page(paper: "a4", margin: (x: 1.5cm, y: 1.8cm))
 #set text(size: 9.5pt)
@@ -175,7 +178,8 @@ export function SettingsView() {
   const [email, setEmail] = useState('')
   const [defaultCurrency, setDefaultCurrency] = useState<Currency>('GEL')
   const [defaultPaymentTerms, setDefaultPaymentTerms] = useState('')
-  const [customTypstTemplate, setCustomTypstTemplate] = useState('')
+  const [customTypstTemplate, setCustomTypstTemplate] = useState(DEFAULT_TYPST_TEMPLATE)
+  const [isOpenTemplateModal, setIsOpenTemplateModal] = useState(false)
 
   // Bank Accounts List
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
@@ -592,15 +596,26 @@ export function SettingsView() {
             </CardDescription>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleResetTemplate}
-            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset to Default
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setIsOpenTemplateModal(true)}
+              className="gap-1.5 text-xs font-semibold"
+            >
+              <LayoutTemplate className="h-3.5 w-3.5" />
+              Browse Template Library
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetTemplate}
+              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset to Default
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -913,6 +928,15 @@ export function SettingsView() {
         onCancel={() => {
           setDeleteBankTarget(null)
           setDeleteBankError(null)
+        }}
+      />
+      {/* Template Library Modal */}
+      <TemplateLibraryModal
+        isOpen={isOpenTemplateModal}
+        onClose={() => setIsOpenTemplateModal(false)}
+        currentTemplateMarkup={customTypstTemplate}
+        onSelectTemplate={(markup) => {
+          setCustomTypstTemplate(markup)
         }}
       />
     </div>

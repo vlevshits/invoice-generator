@@ -13,6 +13,7 @@ import {
   getBankAccounts,
   getCounterparties,
   saveInvoice,
+  saveProfile,
   getNextInvoiceNumber,
   updateInvoiceStatus,
 } from '@/lib/db'
@@ -25,6 +26,7 @@ import { BankAccountSelector } from '@/components/domain/BankAccountSelector'
 import { LineItemsEditor } from '@/components/domain/LineItemsEditor'
 import { AmountInWordsBadge } from '@/components/domain/AmountInWordsBadge'
 import { RecordPaymentModal } from '@/components/domain/RecordPaymentModal'
+import { TemplateLibraryModal } from '@/components/domain/TemplateLibraryModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -35,12 +37,9 @@ import {
   Download,
   FileText,
   CheckCircle2,
-  AlertTriangle,
-  Ban,
   RotateCcw,
-  RefreshCw,
-  FileCheck,
   Mail,
+  LayoutTemplate,
 } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -57,6 +56,8 @@ export function InvoiceBuilderView() {
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate] = useState('')
   const [paidDate, setPaidDate] = useState<string | undefined>(editingInvoice?.paid_date)
+  const [isOpenTemplateModal, setIsOpenTemplateModal] = useState(false)
+  const [activeTemplateMarkup, setActiveTemplateMarkup] = useState<string>('')
   const [currency, setCurrency] = useState<Currency>('GEL')
   const [status, setStatus] = useState<InvoiceStatus>('DRAFT')
   const [selectedCounterparty, setSelectedCounterparty] = useState<Counterparty | null>(null)
@@ -90,6 +91,7 @@ export function InvoiceBuilderView() {
     setProfile(p)
     setBankAccounts(bList)
     setCounterparties(cList)
+    if (p?.custom_typst_template) setActiveTemplateMarkup(p.custom_typst_template)
 
     if (p && p.default_currency) {
       setCurrency(p.default_currency)
@@ -261,7 +263,7 @@ export function InvoiceBuilderView() {
         total_amount: totalAmount,
         amount_in_words: amountInWords,
         notes,
-        custom_typst_template: profile?.custom_typst_template,
+        custom_typst_template: activeTemplateMarkup || profile?.custom_typst_template,
         items: items.map((it) => ({
           description: it.description,
           unit: it.unit,
@@ -378,6 +380,16 @@ export function InvoiceBuilderView() {
           >
             <Save className="h-4 w-4 text-muted-foreground" />
             Save Draft
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsOpenTemplateModal(true)}
+            className="h-9 text-xs font-semibold gap-1.5"
+          >
+            <LayoutTemplate className="h-4 w-4" />
+            Template Library
           </Button>
 
           <Button
@@ -648,6 +660,22 @@ export function InvoiceBuilderView() {
           setPendingTargetStatus(null)
         }}
         onConfirm={handleConfirmPaidDateModal}
+      />
+
+      {/* Template Library Modal */}
+      <TemplateLibraryModal
+        isOpen={isOpenTemplateModal}
+        onClose={() => setIsOpenTemplateModal(false)}
+        currentTemplateMarkup={activeTemplateMarkup || profile?.custom_typst_template || ''}
+        onSelectTemplate={async (markup) => {
+          setActiveTemplateMarkup(markup)
+          if (profile?.id) {
+            await saveProfile({
+              ...profile,
+              custom_typst_template: markup,
+            })
+          }
+        }}
       />
     </div>
   )
