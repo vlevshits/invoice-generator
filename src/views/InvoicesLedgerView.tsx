@@ -6,6 +6,7 @@ import { useAppStore } from '@/store/useAppStore'
 import { performFullGoogleDriveSync } from '@/lib/driveSync'
 import { DriveSyncBadge } from '@/components/domain/DriveSyncBadge'
 import { RecordPaymentModal } from '@/components/domain/RecordPaymentModal'
+import { ConfirmDeleteModal } from '@/components/domain/ConfirmDeleteModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -99,13 +100,17 @@ export function InvoicesLedgerView() {
     loadData()
   }, [startDate, endDate, selectedCounterpartyId, selectedStatus])
 
-  const handleDelete = async (id: number) => {
-    const inv = invoices.find((i) => i.id === id)
-    const invLabel = inv ? `invoice "${inv.invoice_number}"` : 'this invoice'
-    if (confirm(`Are you sure you want to delete ${invLabel}? This action cannot be undone.`)) {
-      await deleteInvoice(id)
-      loadData()
-    }
+  const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState<InvoiceWithDetails | null>(null)
+
+  const handleRequestDeleteInvoice = (inv: InvoiceWithDetails) => {
+    setDeleteInvoiceTarget(inv)
+  }
+
+  const handleConfirmDeleteInvoice = async () => {
+    if (!deleteInvoiceTarget?.id) return
+    await deleteInvoice(deleteInvoiceTarget.id)
+    setDeleteInvoiceTarget(null)
+    loadData()
   }
 
   const handleStateTransition = async (
@@ -441,7 +446,7 @@ export function InvoicesLedgerView() {
 
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => handleDelete(inv.id!)}
+                              onClick={() => handleRequestDeleteInvoice(inv)}
                               className="text-destructive focus:text-destructive"
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
@@ -467,6 +472,19 @@ export function InvoicesLedgerView() {
         currency={paymentModalState.invoice?.currency}
         onClose={() => setPaymentModalState({ isOpen: false })}
         onConfirm={handleConfirmPaidDate}
+      />
+
+      {/* Delete Invoice Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteInvoiceTarget)}
+        title="Delete Invoice"
+        description={
+          deleteInvoiceTarget
+            ? `Are you sure you want to delete invoice "${deleteInvoiceTarget.invoice_number}"? This action cannot be undone.`
+            : ''
+        }
+        onConfirm={handleConfirmDeleteInvoice}
+        onCancel={() => setDeleteInvoiceTarget(null)}
       />
     </div>
   )

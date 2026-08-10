@@ -43,6 +43,7 @@ import {
   RefreshCw,
   FolderSync,
 } from 'lucide-react'
+import { ConfirmDeleteModal } from '@/components/domain/ConfirmDeleteModal'
 
 export const DEFAULT_TYPST_TEMPLATE = `#set page(paper: "a4", margin: (x: 1.5cm, y: 1.8cm))
 #set text(size: 9.5pt)
@@ -296,14 +297,23 @@ export function SettingsView() {
     }
   }
 
-  const handleDeleteBank = async (id: number, label: string) => {
-    if (confirm(`Are you sure you want to delete bank account "${label}"? This action cannot be undone.`)) {
-      try {
-        await deleteBankAccount(id)
-        await loadData()
-      } catch (err: any) {
-        alert(err.message || 'Error deleting bank account: ' + String(err))
-      }
+  const [deleteBankTarget, setDeleteBankTarget] = useState<BankAccount | null>(null)
+  const [deleteBankError, setDeleteBankError] = useState<string | null>(null)
+
+  const handleRequestDeleteBank = (b: BankAccount) => {
+    setDeleteBankError(null)
+    setDeleteBankTarget(b)
+  }
+
+  const handleConfirmDeleteBank = async () => {
+    if (!deleteBankTarget?.id) return
+    try {
+      await deleteBankAccount(deleteBankTarget.id)
+      setDeleteBankTarget(null)
+      setDeleteBankError(null)
+      await loadData()
+    } catch (err: any) {
+      setDeleteBankError(err.message || 'Error deleting bank account.')
     }
   }
 
@@ -543,7 +553,7 @@ export function SettingsView() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteBank(b.id, b.account_label)}
+                        onClick={() => handleRequestDeleteBank(b)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -867,6 +877,23 @@ export function SettingsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Bank Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteBankTarget)}
+        title="Delete Bank Account"
+        description={
+          deleteBankTarget
+            ? `Are you sure you want to delete bank account "${deleteBankTarget.account_label}"? This action cannot be undone.`
+            : ''
+        }
+        errorMessage={deleteBankError}
+        onConfirm={handleConfirmDeleteBank}
+        onCancel={() => {
+          setDeleteBankTarget(null)
+          setDeleteBankError(null)
+        }}
+      />
     </div>
   )
 }

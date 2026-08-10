@@ -13,6 +13,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Users, Plus, Search, Building2, Trash2, Edit, UserCheck, Mail } from 'lucide-react'
+import { ConfirmDeleteModal } from '@/components/domain/ConfirmDeleteModal'
 
 export function CounterpartiesView() {
   const [counterparties, setCounterparties] = useState<Counterparty[]>([])
@@ -76,19 +77,24 @@ export function CounterpartiesView() {
     loadData()
   }
 
-  const handleDelete = async (c: Counterparty) => {
-    if (!c.id) return
-    if (
-      confirm(
-        `Are you sure you want to delete counterparty "${c.business_name}"? This action cannot be undone.`
-      )
-    ) {
-      try {
-        await deleteCounterparty(c.id)
-        loadData()
-      } catch (err: any) {
-        alert(err.message || 'Cannot delete counterparty.')
-      }
+  // Delete Modal State
+  const [deleteTarget, setDeleteTarget] = useState<Counterparty | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const handleRequestDelete = (c: Counterparty) => {
+    setDeleteError(null)
+    setDeleteTarget(c)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget?.id) return
+    try {
+      await deleteCounterparty(deleteTarget.id)
+      setDeleteTarget(null)
+      setDeleteError(null)
+      loadData()
+    } catch (err: any) {
+      setDeleteError(err.message || 'Cannot delete counterparty.')
     }
   }
 
@@ -193,7 +199,7 @@ export function CounterpartiesView() {
                   variant="ghost"
                   size="sm"
                   className="h-8 text-xs gap-1 text-destructive hover:text-destructive"
-                  onClick={() => handleDelete(c)}
+                  onClick={() => handleRequestDelete(c)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Delete
@@ -280,6 +286,23 @@ export function CounterpartiesView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteTarget)}
+        title="Delete Counterparty"
+        description={
+          deleteTarget
+            ? `Are you sure you want to delete counterparty "${deleteTarget.business_name}"? This action cannot be undone.`
+            : ''
+        }
+        errorMessage={deleteError}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setDeleteTarget(null)
+          setDeleteError(null)
+        }}
+      />
     </div>
   )
 }
