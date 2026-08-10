@@ -50,7 +50,7 @@ jobs:
           TYPST_PATH=$(which typst || echo "")
           if [ -n "$TYPST_PATH" ]; then
             cp "$TYPST_PATH" src-tauri/bin/
-            chmod +x src-tauri/bin/* || true
+            chmod 755 src-tauri/bin/* || true
           fi
 
       - name: Install Linux build dependencies
