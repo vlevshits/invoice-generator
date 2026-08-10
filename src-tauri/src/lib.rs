@@ -6,7 +6,7 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -66,12 +66,7 @@ fn escape_typst_str(input: &str) -> String {
         .replace(']', "\\]")
 }
 
-#[tauri::command]
-async fn generate_pdf_command(
-    _app: AppHandle,
-    payload: InvoicePayload,
-    target_path: Option<String>,
-) -> Result<String, String> {
+fn render_typst_template(payload: &InvoicePayload) -> String {
     let curr_sym = escape_typst_str(format_currency_symbol(&payload.currency));
 
     let mut items_typst = String::new();
@@ -286,19 +281,83 @@ async fn generate_pdf_command(
             total_amount = payload.total_amount,
             amount_in_words = amount_in_words,
             notes_typst = notes_typst
-        ),
+        )
     };
+
+    typst_content
+}
+
+fn get_typst_command(app: &AppHandle) -> Command {
+    if let Ok(res_dir) = app.path().resource_dir() {
+        let bundled_bin = res_dir.join("bin").join(if cfg!(windows) { "typst.exe" } else { "typst" });
+        if bundled_bin.exists() {
+            return Command::new(bundled_bin);
+        }
+        let bundled_flat = res_dir.join(if cfg!(windows) { "typst.exe" } else { "typst" });
+        if bundled_flat.exists() {
+            return Command::new(bundled_flat);
+        }
+    }
+
+    if let Ok(output) = Command::new("typst").arg("--version").output() {
+        if output.status.success() {
+            return Command::new("typst");
+        }
+    }
+
+    let candidates = [
+        "/opt/homebrew/bin/typst",
+        "/usr/local/bin/typst",
+        "/usr/bin/typst",
+        "/bin/typst",
+        "C:\\Program Files\\typst\\typst.exe",
+    ];
+
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            return Command::new(path);
+        }
+    }
+
+    if let Ok(home) = std::env::var("HOME") {
+        let cargo_path = std::path::PathBuf::from(home).join(".cargo/bin/typst");
+        if cargo_path.exists() {
+            return Command::new(cargo_path);
+        }
+    }
+
+    if let Ok(userprofile) = std::env::var("USERPROFILE") {
+        let cargo_path_win = std::path::PathBuf::from(userprofile).join(".cargo\\bin\\typst.exe");
+        if cargo_path_win.exists() {
+            return Command::new(cargo_path_win);
+        }
+    }
+
+    Command::new("typst")
+}
+
+#[tauri::command]
+async fn generate_pdf_command(
+    app: AppHandle,
+    payload: InvoicePayload,
+) -> Result<String, String> {
+    let app_dir = app
+        .path()
+        .document_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("Invoices");
+    fs::create_dir_all(&app_dir).map_err(|e| e.to_string())?;
+
+    let filename = format!("invoice_{}.pdf", payload.invoice_number);
+    let final_pdf_path = app_dir.join(filename);
 
     let temp_dir = std::env::temp_dir();
     let temp_typ_path = temp_dir.join(format!("invoice_{}.typ", payload.invoice_number));
-    let final_pdf_path = match target_path {
-        Some(path) => PathBuf::from(path),
-        None => temp_dir.join(format!("invoice_{}.pdf", payload.invoice_number)),
-    };
 
+    let typst_content = render_typst_template(&payload);
     fs::write(&temp_typ_path, typst_content).map_err(|e| e.to_string())?;
 
-    let output = Command::new("typst")
+    let output = get_typst_command(&app)
         .arg("compile")
         .arg(&temp_typ_path)
         .arg(&final_pdf_path)
@@ -315,7 +374,7 @@ async fn generate_pdf_command(
 
 #[tauri::command]
 async fn compile_typst_to_svg(
-    _app: AppHandle,
+    app: AppHandle,
     payload: InvoicePayload,
 ) -> Result<String, String> {
     let curr_sym = escape_typst_str(format_currency_symbol(&payload.currency));
@@ -415,7 +474,7 @@ async fn compile_typst_to_svg(
 
     fs::write(&temp_typ_path, typst_content).map_err(|e| e.to_string())?;
 
-    let output = Command::new("typst")
+    let output = get_typst_command(&app)
         .arg("compile")
         .arg(&temp_typ_path)
         .arg(&temp_svg_path)
