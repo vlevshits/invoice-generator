@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice Generator - Privacy Policy & Google OAuth User Data Policy</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #10b981;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 32px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      color: var(--accent);
+      font-size: 2rem;
+      margin-top: 0;
+      border-b: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+    h2 {
+      color: var(--text);
+      font-size: 1.25rem;
+      margin-top: 28px;
+    }
+    p, li {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    strong {
+      color: var(--text);
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .callout {
+      background: rgba(51, 65, 85, 0.5);
+      border-left: 4px solid var(--accent);
+      padding: 14px 18px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="badge">Desktop Application Privacy Notice</span>
+    <h1>Privacy Policy & Google API Disclosure</h1>
+    <p><strong>Effective Date:</strong> August 10, 2026</p>
+    <p><strong>Invoice Generator</strong> is a privacy-first, local desktop application built for creating, managing, and exporting professional PDF invoices.</p>
+
+    <h2>1. Data Collection & Local Storage</h2>
+    <p>We respect your privacy. <strong>Invoice Generator operates 100% locally on your machine.</strong> All company profiles, client counterparties, bank details, and invoice transactions are stored exclusively in an encrypted or local SQLite database on your personal computer.</p>
+    <ul>
+      <li>We do <strong>NOT</strong> operate central database servers.</li>
+      <li>We do <strong>NOT</strong> track, collect, transmit, or share your financial data or customer details.</li>
+    </ul>
+
+    <h2>2. Google Drive Integration (`drive.file`)</h2>
+    <p>Invoice Generator offers an optional Google Drive integration that allows you to automatically back up and synchronize generated PDF invoices and summary spreadsheets to your personal Google Drive.</p>
+    
+    <div class="callout">
+      <p><strong>Limited Scope Access:</strong> Our application uses the <code>https://www.googleapis.com/auth/drive.file</code> OAuth scope. This permission is <em>per-file access</em> and allows the app ONLY to access, create, or update files and folders that were explicitly created by or opened with Invoice Generator (e.g., inside your designated "Invoice Generator" folder).</p>
+      <p>Invoice Generator <strong>CANNOT</strong> view, modify, read, or delete any of your existing private files, photos, or documents on Google Drive.</p>
+    </div>
+
+    <h2>3. Google API Services User Data Policy Compliance</h2>
+    <p>Invoice Generator's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, including the <strong>Limited Use</strong> requirements.</p>
+
+    <h2>4. How We Use Google User Data</h2>
+    <ul>
+      <li><strong>File Creation & Updates:</strong> To export generated Typst PDF invoices and update an aggregated <code>Invoices Ledger Summary</code> Google Sheet in your designated Drive folder.</li>
+      <li><strong>In-Place Synchronization:</strong> To overwrite or update previously exported invoice PDFs in-place without creating duplicate files.</li>
+      <li><strong>No Data Sharing:</strong> Your Google OAuth access tokens are stored locally on your device and are never transmitted to third parties or remote analytics services.</li>
+    </ul>
+
+    <h2>5. Disconnecting & Revoking Access</h2>
+    <p>You can disconnect Google Drive at any time inside the app settings by clicking <strong>Disconnect Drive</strong>. You may also revoke access at any time via your <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account Security Settings</a>.</p>
+
+    <h2>6. Contact & Open Source Support</h2>
+    <p>If you have any questions about this Privacy Policy or app security, please contact us via our GitHub Repository or support channel.</p>
+  </div>
+  <footer>
+    &copy; 2026 Invoice Generator. Built with Tauri, React & Typst.
+  </footer>
+</body>
+</html>
