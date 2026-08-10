@@ -100,7 +100,9 @@ export function InvoicesLedgerView() {
   }, [startDate, endDate, selectedCounterpartyId, selectedStatus])
 
   const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this invoice?')) {
+    const inv = invoices.find((i) => i.id === id)
+    const invLabel = inv ? `invoice "${inv.invoice_number}"` : 'this invoice'
+    if (confirm(`Are you sure you want to delete ${invLabel}? This action cannot be undone.`)) {
       await deleteInvoice(id)
       loadData()
     }

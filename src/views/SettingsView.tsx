@@ -296,13 +296,13 @@ export function SettingsView() {
     }
   }
 
-  const handleDeleteBank = async (id: number) => {
-    if (confirm('Delete this bank account?')) {
+  const handleDeleteBank = async (id: number, label: string) => {
+    if (confirm(`Are you sure you want to delete bank account "${label}"? This action cannot be undone.`)) {
       try {
         await deleteBankAccount(id)
         await loadData()
       } catch (err: any) {
-        alert('Error deleting bank account: ' + String(err))
+        alert(err.message || 'Error deleting bank account: ' + String(err))
       }
     }
   }
@@ -543,7 +543,7 @@ export function SettingsView() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteBank(b.id)}
+                        onClick={() => handleDeleteBank(b.id, b.account_label)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>

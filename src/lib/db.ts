@@ -180,10 +180,10 @@ export async function deleteBankAccount(id: number): Promise<void> {
     .from(schema.invoices)
     .where(eq(schema.invoices.bankAccountId, id))
 
-  for (const inv of linkedInvoices) {
-    await db.delete(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, inv.id))
+  if (linkedInvoices.length > 0) {
+    throw new Error('Cannot delete bank account because it is associated with existing invoices.')
   }
-  await db.delete(schema.invoices).where(eq(schema.invoices.bankAccountId, id))
+
   await db.delete(schema.bankAccounts).where(eq(schema.bankAccounts.id, id))
 }
 
@@ -248,10 +248,10 @@ export async function deleteCounterparty(id: number): Promise<void> {
     .from(schema.invoices)
     .where(eq(schema.invoices.counterpartyId, id))
 
-  for (const inv of linkedInvoices) {
-    await db.delete(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, inv.id))
+  if (linkedInvoices.length > 0) {
+    throw new Error('Cannot delete counterparty because it is associated with existing invoices.')
   }
-  await db.delete(schema.invoices).where(eq(schema.invoices.counterpartyId, id))
+
   await db.delete(schema.counterparties).where(eq(schema.counterparties.id, id))
 }
 

@@ -76,10 +76,19 @@ export function CounterpartiesView() {
     loadData()
   }
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this counterparty?')) {
-      await deleteCounterparty(id)
-      loadData()
+  const handleDelete = async (c: Counterparty) => {
+    if (!c.id) return
+    if (
+      confirm(
+        `Are you sure you want to delete counterparty "${c.business_name}"? This action cannot be undone.`
+      )
+    ) {
+      try {
+        await deleteCounterparty(c.id)
+        loadData()
+      } catch (err: any) {
+        alert(err.message || 'Cannot delete counterparty.')
+      }
     }
   }
 
@@ -182,7 +191,7 @@ export function CounterpartiesView() {
                   variant="ghost"
                   size="sm"
                   className="h-8 text-xs gap-1 text-destructive hover:text-destructive"
-                  onClick={() => handleDelete(c.id)}
+                  onClick={() => handleDelete(c)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Delete
