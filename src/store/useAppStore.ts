@@ -3,7 +3,7 @@ import type { InvoiceWithDetails } from '@/types'
 
 export type ActiveView = 'ledger' | 'builder' | 'counterparties' | 'settings'
 
-export const DEFAULT_GOOGLE_CLIENT_ID = '1054238596102-desktop-app.apps.googleusercontent.com'
+export const DEFAULT_GOOGLE_CLIENT_ID = '872111560300-19100fqsosmv826bf5fuf7e4jhgpl8kg.apps.googleusercontent.com'
 
 export function getActiveGoogleClientId(customId?: string): string {
   if (customId && customId.trim() !== '') {
