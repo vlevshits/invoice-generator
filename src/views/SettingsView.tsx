@@ -7,7 +7,11 @@ import {
   saveBankAccount,
   deleteBankAccount,
 } from '@/lib/db'
-import { useAppStore, getActiveGoogleClientId } from '@/store/useAppStore'
+import {
+  useAppStore,
+  getActiveGoogleClientId,
+  getActiveGoogleClientSecret,
+} from '@/store/useAppStore'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -154,21 +158,18 @@ export function SettingsView() {
 
   const handleGoogleOAuth = async () => {
     const activeClientId = getActiveGoogleClientId(customClientIdInput)
+    const activeClientSecret = getActiveGoogleClientSecret(customClientSecretInput)
 
     try {
       setIsOAuthRunning(true)
       const tokens: any = await invoke('start_google_oauth', {
         clientId: activeClientId,
-        clientSecret: customClientSecretInput || undefined,
+        clientSecret: activeClientSecret,
       })
       if (tokens && tokens.access_token) {
         setGoogleAccessToken(tokens.access_token)
-        if (customClientIdInput) {
-          setGoogleClientId(customClientIdInput)
-        }
-        if (customClientSecretInput) {
-          setGoogleClientSecret(customClientSecretInput)
-        }
+        if (customClientIdInput) setGoogleClientId(customClientIdInput)
+        if (customClientSecretInput) setGoogleClientSecret(customClientSecretInput)
         alert('Google Drive authorization successful!')
       }
     } catch (err: any) {
@@ -399,45 +400,6 @@ export function SettingsView() {
                 </Button>
               )}
             </div>
-          </div>
-
-          {/* Credentials Inputs */}
-          <div className="p-4 rounded-md border border-border bg-card/60 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Google OAuth Client ID
-                </label>
-                <Input
-                  placeholder="872111560300-19100...apps.googleusercontent.com"
-                  value={customClientIdInput}
-                  onChange={(e) => {
-                    setCustomClientIdInput(e.target.value)
-                    setGoogleClientId(e.target.value)
-                  }}
-                  mono
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Google OAuth Client Secret (From GCP Console)
-                </label>
-                <Input
-                  type="password"
-                  placeholder="GOCSPX-..."
-                  value={customClientSecretInput}
-                  onChange={(e) => {
-                    setCustomClientSecretInput(e.target.value)
-                    setGoogleClientSecret(e.target.value)
-                  }}
-                  mono
-                />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Copy the <strong>Client Secret</strong> from your Google Cloud Console credential (under <i>OAuth 2.0 Client IDs → Invoice Generator → Client Secret</i>).
-            </p>
           </div>
         </CardContent>
       </Card>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAppStore, getActiveGoogleClientId } from '@/store/useAppStore'
+import { useAppStore, getActiveGoogleClientId, getActiveGoogleClientSecret } from '@/store/useAppStore'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -19,12 +19,13 @@ export function DriveSyncBadge({ invoiceNumber, pdfPath, onSyncSuccess }: DriveS
 
   const handleConnectDrive = async () => {
     const activeClientId = getActiveGoogleClientId(googleClientId)
+    const activeClientSecret = getActiveGoogleClientSecret(googleClientSecret)
 
     try {
       setIsSyncing(true)
       const tokens: any = await invoke('start_google_oauth', {
         clientId: activeClientId,
-        clientSecret: googleClientSecret || undefined,
+        clientSecret: activeClientSecret,
       })
       if (tokens && tokens.access_token) {
         setGoogleAccessToken(tokens.access_token)
