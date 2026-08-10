@@ -499,38 +499,21 @@ export function InvoiceBuilderView() {
             </CardContent>
           </Card>
 
-          {/* Notes & Status */}
+          {/* Notes */}
           <Card>
             <CardHeader className="py-3.5">
               <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                4. Notes & Payment Status
+                4. Payment Terms & Additional Notes
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 py-2">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Current Status:
-                  </span>
-                  {getStatusBadge(status)}
-                </div>
-                <p className="text-xs text-muted-foreground italic">
-                  (Use top header action buttons to transition status)
-                </p>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Payment Terms / Additional Notes
-                </label>
-                <textarea
-                  rows={3}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Enter payment instructions, terms or bank details note..."
-                  className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground resize-y"
-                />
-              </div>
+            <CardContent className="py-2">
+              <textarea
+                rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Enter payment instructions, terms or bank details note..."
+                className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground resize-y"
+              />
             </CardContent>
           </Card>
         </div>
