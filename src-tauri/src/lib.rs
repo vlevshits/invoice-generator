@@ -324,7 +324,7 @@ async fn start_google_oauth(
     let _ = open::that(&auth_url);
 
     let mut auth_code = None;
-    if let Ok(Some(request)) = server.recv_timeout(std::time::Duration::from_secs(120)) {
+    if let Ok(Some(request)) = server.recv_timeout(std::time::Duration::from_secs(30)) {
         let url_str = request.url();
         if let Ok(parsed_url) = url::Url::parse(&format!("http://localhost{}", url_str)) {
             for (k, v) in parsed_url.query_pairs() {
@@ -341,7 +341,7 @@ async fn start_google_oauth(
         let _ = request.respond(response);
     }
 
-    let code = auth_code.ok_or_else(|| "OAuth code retrieval timed out or was cancelled".to_string())?;
+    let code = auth_code.ok_or_else(|| "Google Drive login timed out or was closed in the browser. Click 'Sign in with Google Drive' to try again.".to_string())?;
 
     let client = reqwest::Client::new();
     let mut params = vec![

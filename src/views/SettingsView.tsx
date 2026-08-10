@@ -37,6 +37,7 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  XCircle,
 } from 'lucide-react'
 
 export function SettingsView() {
@@ -173,10 +174,14 @@ export function SettingsView() {
         alert('Google Drive authorization successful!')
       }
     } catch (err: any) {
-      alert('OAuth Error: ' + String(err))
+      alert('Google OAuth login notice: ' + String(err))
     } finally {
       setIsOAuthRunning(false)
     }
+  }
+
+  const handleCancelOAuth = () => {
+    setIsOAuthRunning(false)
   }
 
   return (
@@ -377,18 +382,24 @@ export function SettingsView() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Button
-                onClick={handleGoogleOAuth}
-                disabled={isOAuthRunning}
-                className="gap-2 font-semibold shadow-xs"
-              >
-                {isOAuthRunning ? (
+              {isOAuthRunning ? (
+                <Button
+                  variant="outline"
+                  onClick={handleCancelOAuth}
+                  className="gap-2 text-amber-500 border-amber-500/40 text-xs"
+                >
                   <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
+                  Cancel Waiting
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleGoogleOAuth}
+                  className="gap-2 font-semibold shadow-xs"
+                >
                   <Cloud className="h-4 w-4" />
-                )}
-                {googleAccessToken ? 'Re-authorize Google Drive' : 'Sign in with Google Drive'}
-              </Button>
+                  {googleAccessToken ? 'Re-authorize Google Drive' : 'Sign in with Google Drive'}
+                </Button>
+              )}
 
               {googleAccessToken && (
                 <Button

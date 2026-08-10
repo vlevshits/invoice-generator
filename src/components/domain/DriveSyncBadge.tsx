@@ -3,7 +3,7 @@ import { useAppStore, getActiveGoogleClientId, getActiveGoogleClientSecret } fro
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CloudUpload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { CloudUpload, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react'
 
 interface DriveSyncBadgeProps {
   invoiceNumber?: string
@@ -31,10 +31,14 @@ export function DriveSyncBadge({ invoiceNumber, pdfPath, onSyncSuccess }: DriveS
         setGoogleAccessToken(tokens.access_token)
       }
     } catch (err: any) {
-      alert('Google OAuth login error: ' + String(err))
+      alert('Google OAuth login notice: ' + String(err))
     } finally {
       setIsSyncing(false)
     }
+  }
+
+  const handleCancelLoading = () => {
+    setIsSyncing(false)
   }
 
   const handleUploadInvoice = async () => {
@@ -76,6 +80,18 @@ export function DriveSyncBadge({ invoiceNumber, pdfPath, onSyncSuccess }: DriveS
           <CheckCircle className="h-3 w-3" />
           Drive Connected
         </Badge>
+      ) : isSyncing ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs text-amber-500 border-amber-500/30"
+          onClick={handleCancelLoading}
+          title="Click to cancel waiting and retry"
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Waiting for Browser... (Click to Cancel)
+        </Button>
       ) : (
         <Button
           type="button"
@@ -83,9 +99,8 @@ export function DriveSyncBadge({ invoiceNumber, pdfPath, onSyncSuccess }: DriveS
           size="sm"
           className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
           onClick={handleConnectDrive}
-          disabled={isSyncing}
         >
-          {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertCircle className="h-3.5 w-3.5 text-amber-500" />}
+          <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
           Sign in to Google Drive
         </Button>
       )}
