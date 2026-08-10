@@ -201,6 +201,7 @@ export function InvoiceBuilderView() {
         total_amount: totalAmount,
         amount_in_words: amountInWords,
         notes,
+        custom_typst_template: profile?.custom_typst_template,
         items: items.map((it) => ({
           description: it.description,
           unit: it.unit,

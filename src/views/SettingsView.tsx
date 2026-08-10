@@ -37,7 +37,117 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  FileCode,
+  RotateCcw,
 } from 'lucide-react'
+
+export const DEFAULT_TYPST_TEMPLATE = `#set page(paper: "a4", margin: (x: 1.5cm, y: 1.8cm))
+#set text(size: 9.5pt)
+
+#grid(
+  columns: (1fr, 1fr),
+  align: (left, right),
+  [
+    #text(size: 15pt, weight: "bold", fill: rgb("0f172a"))[{{seller_name}}] \\
+    #v(2pt)
+    #text(size: 8.5pt, fill: rgb("475569"))[
+      Tax ID: {{seller_tax_id}} \\
+      {{seller_address}}
+    ]
+  ],
+  [
+    #text(size: 22pt, weight: "bold", fill: rgb("10b981"))[INVOICE] \\
+    #v(2pt)
+    #text(size: 10.5pt, weight: "bold")[Invoice No. {{invoice_number}}] \\
+    #v(2pt)
+    #text(size: 8.5pt, fill: rgb("475569"))[
+      Issue Date: {{issue_date}} \\
+      Due Date: {{due_date}}
+    ]
+  ]
+)
+
+#v(12pt)
+#line(length: 100%, stroke: 0.5pt + rgb("e2e8f0"))
+#v(8pt)
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 20pt,
+  [
+    #text(weight: "bold", fill: rgb("64748b"), size: 8pt)[INVOICE TO:] \\
+    #v(2pt)
+    #text(weight: "bold", size: 10.5pt)[{{buyer_name}}] \\
+    #text(size: 8.5pt, fill: rgb("334155"))[
+      Tax ID: {{buyer_tax_id}} \\
+      {{buyer_director}}
+      Address: {{buyer_address}}
+    ]
+  ],
+  [
+    #text(weight: "bold", fill: rgb("64748b"), size: 8pt)[PAYMENT DETAILS:] \\
+    #v(2pt)
+    #text(size: 8.5pt, fill: rgb("334155"))[
+      Bank: {{bank_name}} \\
+      Beneficiary: {{bank_beneficiary}} \\
+      IBAN: #raw("{{bank_iban}}") \\
+      SWIFT/BIC: #raw("{{bank_swift}}") \\
+      {{intermediary_info}}
+    ]
+  ]
+)
+
+#v(16pt)
+
+#table(
+  columns: (1fr, 85pt, 85pt, 95pt),
+  align: (left, center, right, right),
+  fill: (x, y) => if y == 0 { rgb("f8fafc") } else if calc.even(y) { rgb("f8fafc") } else { none },
+  stroke: 0.5pt + rgb("e2e8f0"),
+  [ *Description* ], [ *Qty (Units)* ], [ *Unit Price* ], [ *Net Price* ],
+{{items_table_rows}})
+
+#v(10pt)
+
+#align(right)[
+  #block(width: 220pt)[
+    #grid(
+      columns: (1fr, 1fr),
+      align: (left, right),
+      row-gutter: 6pt,
+      [ *Grand Total:* ], [ *#text(size: 12pt, weight: "bold", fill: rgb("10b981"))[{{currency_symbol}}{{total_amount}}]* ]
+    )
+  ]
+]
+
+#v(10pt)
+#rect(width: 100%, fill: rgb("f1f5f9"), inset: 8pt, radius: 4pt)[
+  #text(size: 8.5pt, weight: "medium", fill: rgb("334155"))[
+    *Amount in words:* {{amount_in_words}}
+  ]
+]
+
+{{notes}}
+
+#v(40pt)
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 40pt,
+  align: center,
+  [
+    #line(length: 80%, stroke: 0.5pt + rgb("94a3b8"))
+    #v(4pt)
+    #text(size: 8.5pt, weight: "medium")[Seller Signature] \\
+    #text(size: 7.5pt, fill: rgb("64748b"))[({{seller_name}})]
+  ],
+  [
+    #line(length: 80%, stroke: 0.5pt + rgb("94a3b8"))
+    #v(4pt)
+    #text(size: 8.5pt, weight: "medium")[Buyer Signature] \\
+    #text(size: 7.5pt, fill: rgb("64748b"))[({{buyer_name}})]
+  ]
+)`
 
 export function SettingsView() {
   const {
@@ -55,6 +165,7 @@ export function SettingsView() {
   const [legalAddress, setLegalAddress] = useState('')
   const [defaultCurrency, setDefaultCurrency] = useState<Currency>('GEL')
   const [defaultPaymentTerms, setDefaultPaymentTerms] = useState('')
+  const [customTypstTemplate, setCustomTypstTemplate] = useState('')
 
   // Bank Accounts List
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
@@ -84,6 +195,9 @@ export function SettingsView() {
       setLegalAddress(p.legal_address)
       setDefaultCurrency(p.default_currency)
       setDefaultPaymentTerms(p.default_payment_terms || '')
+      setCustomTypstTemplate(p.custom_typst_template || DEFAULT_TYPST_TEMPLATE)
+    } else {
+      setCustomTypstTemplate(DEFAULT_TYPST_TEMPLATE)
     }
     setBankAccounts(bList)
   }
@@ -99,9 +213,16 @@ export function SettingsView() {
       legal_address: legalAddress,
       default_currency: defaultCurrency,
       default_payment_terms: defaultPaymentTerms,
+      custom_typst_template: customTypstTemplate,
     })
-    alert('Seller profile updated successfully!')
+    alert('Settings & Invoice Template updated successfully!')
     loadData()
+  }
+
+  const handleResetTemplate = () => {
+    if (confirm('Reset invoice template back to standard default layout?')) {
+      setCustomTypstTemplate(DEFAULT_TYPST_TEMPLATE)
+    }
   }
 
   const handleOpenAddBank = () => {
@@ -186,6 +307,27 @@ export function SettingsView() {
     setIsOAuthRunning(false)
   }
 
+  const templateVariables = [
+    '{{seller_name}}',
+    '{{seller_tax_id}}',
+    '{{seller_address}}',
+    '{{buyer_name}}',
+    '{{buyer_tax_id}}',
+    '{{buyer_address}}',
+    '{{invoice_number}}',
+    '{{issue_date}}',
+    '{{due_date}}',
+    '{{bank_name}}',
+    '{{bank_beneficiary}}',
+    '{{bank_iban}}',
+    '{{bank_swift}}',
+    '{{items_table_rows}}',
+    '{{currency_symbol}}',
+    '{{total_amount}}',
+    '{{amount_in_words}}',
+    '{{notes}}',
+  ]
+
   return (
     <div className="space-y-6 p-8 max-w-5xl mx-auto pb-16">
       {/* Header */}
@@ -195,7 +337,7 @@ export function SettingsView() {
           Settings & Profile
         </h2>
         <p className="text-sm text-muted-foreground">
-          Configure your legal seller details, default payment terms, multiple bank accounts, and Google Drive OAuth.
+          Configure your legal seller details, default payment terms, custom PDF layout template, bank accounts, and Google Drive.
         </p>
       </div>
 
@@ -274,21 +416,74 @@ export function SettingsView() {
               onChange={(e) => setDefaultPaymentTerms(e.target.value)}
               className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground resize-y"
             />
-            <p className="text-[11px] text-muted-foreground mt-1">
-              These payment terms will automatically pre-populate on new invoices (and can be edited per-invoice).
-            </p>
           </div>
 
           <div className="pt-2 flex justify-end">
             <Button onClick={handleSaveProfile} className="gap-2">
               <Save className="h-4 w-4" />
-              Save Profile & Payment Terms
+              Save Profile & Settings
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* 2. Multi-Bank Accounts Manager Card */}
+      {/* 2. Custom Typst Invoice Template Card */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileCode className="h-4 w-4 text-primary" />
+              Custom PDF Invoice Template (Typst Markup)
+            </CardTitle>
+            <CardDescription>
+              Customize your PDF layout using clean Typst markup. Dynamic placeholder tags are substituted automatically.
+            </CardDescription>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResetTemplate}
+            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset to Default
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <span className="text-xs font-medium text-muted-foreground block mb-2">
+              Available Placeholder Variables:
+            </span>
+            <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
+              {templateVariables.map((v) => (
+                <span key={v} className="bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20">
+                  {v}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <textarea
+              rows={14}
+              value={customTypstTemplate}
+              onChange={(e) => setCustomTypstTemplate(e.target.value)}
+              className="w-full rounded-md border border-input bg-muted/40 p-4 text-xs font-mono text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring leading-relaxed resize-y"
+              placeholder="Enter Typst markup template..."
+            />
+          </div>
+
+          <div className="pt-1 flex justify-end">
+            <Button onClick={handleSaveProfile} className="gap-2">
+              <Save className="h-4 w-4" />
+              Save Custom Template
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. Multi-Bank Accounts Manager Card */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -367,7 +562,7 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
-      {/* 3. Google Drive Automatic Cloud Backup Card */}
+      {/* 4. Google Drive Automatic Cloud Backup Card */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">

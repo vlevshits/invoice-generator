@@ -9,6 +9,7 @@ export interface Profile {
   legal_address: string
   default_currency: Currency
   default_payment_terms?: string
+  custom_typst_template?: string
   created_at?: string
 }
 

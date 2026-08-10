@@ -8,6 +8,7 @@ export const profiles = sqliteTable('profiles', {
   legalAddress: text('legal_address').notNull(),
   defaultCurrency: text('default_currency').notNull().default('GEL'),
   defaultPaymentTerms: text('default_payment_terms'),
+  customTypstTemplate: text('custom_typst_template'),
   createdAt: text('created_at'),
 })
 

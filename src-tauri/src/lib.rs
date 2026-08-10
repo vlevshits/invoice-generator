@@ -41,6 +41,7 @@ pub struct InvoicePayload {
     pub total_amount: f64,
     pub amount_in_words: String,
     pub notes: Option<String>,
+    pub custom_typst_template: Option<String>,
     pub items: Vec<InvoiceItemPayload>,
 }
 
@@ -131,8 +132,31 @@ async fn generate_pdf_command(
         String::new()
     };
 
-    let typst_content = format!(
-        r#"#set page(paper: "a4", margin: (x: 1.5cm, y: 1.8cm))
+    let typst_content = match &payload.custom_typst_template {
+        Some(tmpl) if !tmpl.trim().is_empty() => tmpl
+            .replace("{{seller_name}}", &seller_name)
+            .replace("{{seller_tax_id}}", &seller_tax_id)
+            .replace("{{seller_address}}", &seller_address)
+            .replace("{{invoice_number}}", &payload.invoice_number)
+            .replace("{{issue_date}}", &payload.issue_date)
+            .replace("{{due_date}}", due_date_str)
+            .replace("{{buyer_name}}", &buyer_name)
+            .replace("{{buyer_tax_id}}", &buyer_tax_id)
+            .replace("{{buyer_director}}", &director_typst)
+            .replace("{{buyer_address}}", &buyer_address)
+            .replace("{{bank_name}}", &bank_name)
+            .replace("{{bank_beneficiary}}", &bank_beneficiary)
+            .replace("{{bank_iban}}", &bank_iban)
+            .replace("{{bank_swift}}", &bank_swift)
+            .replace("{{intermediary_info}}", &intermediary_typst)
+            .replace("{{items_table_rows}}", &items_typst)
+            .replace("{{currency_symbol}}", curr_sym)
+            .replace("{{currency}}", &payload.currency)
+            .replace("{{total_amount}}", &format!("{:.2}", payload.total_amount))
+            .replace("{{amount_in_words}}", &amount_in_words)
+            .replace("{{notes}}", &notes_typst),
+        _ => format!(
+            r#"#set page(paper: "a4", margin: (x: 1.5cm, y: 1.8cm))
 #set text(size: 9.5pt)
 
 #grid(
@@ -240,27 +264,28 @@ async fn generate_pdf_command(
   ]
 )
 "#,
-        seller_name = seller_name,
-        seller_tax_id = seller_tax_id,
-        seller_address = seller_address,
-        invoice_number = payload.invoice_number,
-        issue_date = payload.issue_date,
-        due_date_str = due_date_str,
-        buyer_name = buyer_name,
-        buyer_tax_id = buyer_tax_id,
-        director_typst = director_typst,
-        buyer_address = buyer_address,
-        bank_name = bank_name,
-        bank_beneficiary = bank_beneficiary,
-        bank_iban = bank_iban,
-        bank_swift = bank_swift,
-        intermediary_typst = intermediary_typst,
-        items_typst = items_typst,
-        curr_sym = curr_sym,
-        total_amount = payload.total_amount,
-        amount_in_words = amount_in_words,
-        notes_typst = notes_typst
-    );
+            seller_name = seller_name,
+            seller_tax_id = seller_tax_id,
+            seller_address = seller_address,
+            invoice_number = payload.invoice_number,
+            issue_date = payload.issue_date,
+            due_date_str = due_date_str,
+            buyer_name = buyer_name,
+            buyer_tax_id = buyer_tax_id,
+            director_typst = director_typst,
+            buyer_address = buyer_address,
+            bank_name = bank_name,
+            bank_beneficiary = bank_beneficiary,
+            bank_iban = bank_iban,
+            bank_swift = bank_swift,
+            intermediary_typst = intermediary_typst,
+            items_typst = items_typst,
+            curr_sym = curr_sym,
+            total_amount = payload.total_amount,
+            amount_in_words = amount_in_words,
+            notes_typst = notes_typst
+        ),
+    };
 
     let temp_dir = std::env::temp_dir();
     let temp_typ_path = temp_dir.join(format!("invoice_{}.typ", payload.invoice_number));
@@ -507,6 +532,11 @@ pub fn run() {
         DELETE FROM counterparties WHERE tax_id = '987654321' OR business_name = 'Acme Client Corporation';
         DELETE FROM profiles WHERE tax_id = '123456789' AND business_name = 'Your Business Name';
         ",
+        kind: MigrationKind::Up,
+    }, Migration {
+        version: 4,
+        description: "add_custom_typst_template_to_profiles",
+        sql: "ALTER TABLE profiles ADD COLUMN custom_typst_template TEXT;",
         kind: MigrationKind::Up,
     }];
 
