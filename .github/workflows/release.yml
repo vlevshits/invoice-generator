@@ -41,7 +41,7 @@ jobs:
       - name: Install Typst CLI
         uses: typst-community/setup-typst@v1
         with:
-          typst-version: 'v0.15.1'
+          typst-version: 'latest'
 
       - name: Install Linux build dependencies
         if: matrix.platform == 'ubuntu-22.04'
