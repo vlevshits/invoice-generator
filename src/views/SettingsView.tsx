@@ -42,7 +42,9 @@ import {
   RotateCcw,
   RefreshCw,
   FolderSync,
+  ExternalLink,
 } from 'lucide-react'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { ConfirmDeleteModal } from '@/components/domain/ConfirmDeleteModal'
 
 export const DEFAULT_TYPST_TEMPLATE = `#set page(paper: "a4", margin: (x: 1.5cm, y: 1.8cm))
@@ -742,6 +744,25 @@ export function SettingsView() {
               )}
             </div>
           )}
+
+          <div className="pt-2 flex justify-between items-center text-xs text-muted-foreground border-t border-border/50">
+            <p>
+              OAuth Scope: <code className="font-mono text-emerald-400">drive.file</code> (Per-file restricted access).
+            </p>
+            <a
+              href="https://invoice-generator.pages.dev/privacy.html"
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => {
+                e.preventDefault()
+                openUrl('https://invoice-generator.pages.dev/privacy.html')
+              }}
+              className="text-primary hover:underline font-medium inline-flex items-center gap-1"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              View Privacy Policy & Google Disclosure
+            </a>
+          </div>
         </CardContent>
       </Card>
 
