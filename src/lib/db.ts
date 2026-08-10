@@ -1,15 +1,15 @@
 import Database from '@tauri-apps/plugin-sql'
 import { drizzle } from 'drizzle-orm/sqlite-proxy'
+import { eq, desc, asc } from 'drizzle-orm'
 import * as schema from '@/db/schema'
 import type {
   Profile,
   BankAccount,
   Counterparty,
   Invoice,
-  InvoiceItem,
   InvoiceWithDetails,
-  InvoiceStatus,
   Currency,
+  InvoiceStatus,
 } from '@/types'
 
 let rawDbInstance: Database | null = null
@@ -30,22 +30,25 @@ export async function getRawDb(): Promise<Database> {
 
 export async function getDb() {
   if (!drizzleDbInstance) {
-    const tauriDb = await getRawDb()
+    const rawDb = await getRawDb()
     drizzleDbInstance = drizzle<typeof schema>(
       async (sql, params, method) => {
         try {
           if (method === 'run') {
-            const res = await tauriDb.execute(sql, params)
-            return { rows: [], lastInsertRowid: res.lastInsertId }
+            await rawDb.execute(sql, params)
+            return { rows: [] }
           }
-          const rows = await tauriDb.select<any[]>(sql, params)
+          const rows = await rawDb.select<any[]>(sql, params)
+          if (!rows || rows.length === 0) {
+            return { rows: [] }
+          }
           if (method === 'get') {
-            return { rows: rows.length > 0 ? [Object.values(rows[0])] : [] }
+            return { rows: [Object.values(rows[0])] }
           }
           return { rows: rows.map((r) => Object.values(r)) }
-        } catch (e: any) {
-          console.error('Drizzle SQLite Proxy error:', e)
-          throw e
+        } catch (e) {
+          console.error('Error in Drizzle SQLite proxy query:', e)
+          return { rows: [] }
         }
       },
       { schema }
@@ -56,384 +59,377 @@ export async function getDb() {
 
 // ----------------- Profile -----------------
 export async function getProfile(): Promise<Profile | null> {
-  const tauriDb = await getRawDb()
-  const rows = await tauriDb.select<any[]>('SELECT * FROM profiles ORDER BY id ASC LIMIT 1')
-  if (rows.length === 0) return null
+  const db = await getDb()
+  const result = await db.select().from(schema.profiles).limit(1)
+  if (result.length === 0) return null
 
-  const r = rows[0]
+  const p = result[0]
   return {
-    id: r.id,
-    business_name: r.business_name,
-    tax_id: r.tax_id,
-    legal_address: r.legal_address,
-    default_currency: r.default_currency as Currency,
-    default_payment_terms: r.default_payment_terms || undefined,
-    custom_typst_template: r.custom_typst_template || undefined,
-    created_at: r.created_at,
+    id: p.id,
+    business_name: p.businessName,
+    tax_id: p.taxId,
+    legal_address: p.legalAddress,
+    default_currency: p.defaultCurrency as Currency,
+    default_payment_terms: p.defaultPaymentTerms || undefined,
+    custom_typst_template: p.customTypstTemplate || undefined,
+    created_at: p.createdAt || undefined,
   }
 }
 
 export async function saveProfile(profile: Partial<Profile>): Promise<void> {
-  const tauriDb = await getRawDb()
+  const db = await getDb()
   const existing = await getProfile()
 
   if (existing) {
-    await tauriDb.execute(
-      `UPDATE profiles SET business_name = $1, tax_id = $2, legal_address = $3, default_currency = $4, default_payment_terms = $5, custom_typst_template = $6 WHERE id = $7`,
-      [
-        profile.business_name,
-        profile.tax_id,
-        profile.legal_address,
-        profile.default_currency || 'GEL',
-        profile.default_payment_terms || null,
-        profile.custom_typst_template || null,
-        existing.id,
-      ]
-    )
+    await db
+      .update(schema.profiles)
+      .set({
+        businessName: profile.business_name || '',
+        taxId: profile.tax_id || '',
+        legalAddress: profile.legal_address || '',
+        defaultCurrency: profile.default_currency || 'GEL',
+        defaultPaymentTerms: profile.default_payment_terms || null,
+        customTypstTemplate: profile.custom_typst_template || null,
+      })
+      .where(eq(schema.profiles.id, existing.id))
   } else {
-    await tauriDb.execute(
-      `INSERT INTO profiles (business_name, tax_id, legal_address, default_currency, default_payment_terms, custom_typst_template) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        profile.business_name || '',
-        profile.tax_id || '',
-        profile.legal_address || '',
-        profile.default_currency || 'GEL',
-        profile.default_payment_terms || null,
-        profile.custom_typst_template || null,
-      ]
-    )
+    await db.insert(schema.profiles).values({
+      businessName: profile.business_name || '',
+      taxId: profile.tax_id || '',
+      legalAddress: profile.legal_address || '',
+      defaultCurrency: profile.default_currency || 'GEL',
+      defaultPaymentTerms: profile.default_payment_terms || null,
+      customTypstTemplate: profile.custom_typst_template || null,
+    })
   }
+}
+
+export async function ensureProfileId(): Promise<number> {
+  const profile = await getProfile()
+  if (profile) return profile.id
+
+  await saveProfile({ business_name: '', tax_id: '', legal_address: '', default_currency: 'GEL' })
+  const newProfile = await getProfile()
+  return newProfile ? newProfile.id : 1
 }
 
 // ----------------- Bank Accounts -----------------
 export async function getBankAccounts(): Promise<BankAccount[]> {
-  const tauriDb = await getRawDb()
-  const rows = await tauriDb.select<any[]>(
-    'SELECT * FROM bank_accounts ORDER BY is_default DESC, id DESC'
-  )
-  return rows.map((r) => ({
-    id: r.id,
-    profile_id: r.profile_id,
-    account_label: r.account_label,
-    beneficiary_name: r.beneficiary_name,
-    bank_name: r.bank_name,
-    bank_address: r.bank_address,
-    iban: r.iban,
-    swift_bic: r.swift_bic,
-    intermediary_bank_name: r.intermediary_bank_name,
-    intermediary_swift: r.intermediary_swift,
-    is_default: Boolean(r.is_default),
+  const db = await getDb()
+  const rows = await db
+    .select()
+    .from(schema.bankAccounts)
+    .orderBy(desc(schema.bankAccounts.isDefault), desc(schema.bankAccounts.id))
+
+  return rows.map((b) => ({
+    id: b.id,
+    profile_id: b.profileId,
+    account_label: b.accountLabel,
+    beneficiary_name: b.beneficiaryName,
+    bank_name: b.bankName,
+    bank_address: b.bankAddress || undefined,
+    iban: b.iban,
+    swift_bic: b.swiftBic,
+    intermediary_bank_name: b.intermediaryBankName || undefined,
+    intermediary_swift: b.intermediarySwift || undefined,
+    is_default: Boolean(b.isDefault),
   }))
 }
 
 export async function saveBankAccount(account: Partial<BankAccount>): Promise<void> {
-  const tauriDb = await getRawDb()
-  let profile = await getProfile()
-  if (!profile) {
-    await saveProfile({ business_name: '', tax_id: '', legal_address: '', default_currency: 'GEL' })
-    profile = await getProfile()
-  }
-  const profileId = profile ? profile.id : 1
+  const db = await getDb()
+  const profileId = await ensureProfileId()
 
   if (account.is_default) {
-    await tauriDb.execute('UPDATE bank_accounts SET is_default = 0')
+    await db.update(schema.bankAccounts).set({ isDefault: false })
   }
 
   if (account.id) {
-    await tauriDb.execute(
-      `UPDATE bank_accounts SET
-        account_label = $1, beneficiary_name = $2, bank_name = $3, bank_address = $4,
-        iban = $5, swift_bic = $6, intermediary_bank_name = $7, intermediary_swift = $8, is_default = $9
-       WHERE id = $10`,
-      [
-        account.account_label,
-        account.beneficiary_name,
-        account.bank_name,
-        account.bank_address || null,
-        account.iban,
-        account.swift_bic,
-        account.intermediary_bank_name || null,
-        account.intermediary_swift || null,
-        account.is_default ? 1 : 0,
-        account.id,
-      ]
-    )
+    await db
+      .update(schema.bankAccounts)
+      .set({
+        accountLabel: account.account_label || '',
+        beneficiaryName: account.beneficiary_name || '',
+        bankName: account.bank_name || '',
+        bankAddress: account.bank_address || null,
+        iban: account.iban || '',
+        swiftBic: account.swift_bic || '',
+        intermediaryBankName: account.intermediary_bank_name || null,
+        intermediarySwift: account.intermediary_swift || null,
+        isDefault: Boolean(account.is_default),
+      })
+      .where(eq(schema.bankAccounts.id, account.id))
   } else {
-    await tauriDb.execute(
-      `INSERT INTO bank_accounts (
-        profile_id, account_label, beneficiary_name, bank_name, bank_address, iban, swift_bic,
-        intermediary_bank_name, intermediary_swift, is_default
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [
-        profileId,
-        account.account_label,
-        account.beneficiary_name,
-        account.bank_name,
-        account.bank_address || null,
-        account.iban,
-        account.swift_bic,
-        account.intermediary_bank_name || null,
-        account.intermediary_swift || null,
-        account.is_default ? 1 : 0,
-      ]
-    )
+    await db.insert(schema.bankAccounts).values({
+      profileId,
+      accountLabel: account.account_label || '',
+      beneficiaryName: account.beneficiary_name || '',
+      bankName: account.bank_name || '',
+      bankAddress: account.bank_address || null,
+      iban: account.iban || '',
+      swiftBic: account.swift_bic || '',
+      intermediaryBankName: account.intermediary_bank_name || null,
+      intermediarySwift: account.intermediary_swift || null,
+      isDefault: Boolean(account.is_default),
+    })
   }
 }
 
 export async function deleteBankAccount(id: number): Promise<void> {
-  const tauriDb = await getRawDb()
-  await tauriDb.execute('DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE bank_account_id = $1)', [id])
-  await tauriDb.execute('DELETE FROM invoices WHERE bank_account_id = $1', [id])
-  await tauriDb.execute('DELETE FROM bank_accounts WHERE id = $1', [id])
+  const db = await getDb()
+  const linkedInvoices = await db
+    .select({ id: schema.invoices.id })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.bankAccountId, id))
+
+  for (const inv of linkedInvoices) {
+    await db.delete(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, inv.id))
+  }
+  await db.delete(schema.invoices).where(eq(schema.invoices.bankAccountId, id))
+  await db.delete(schema.bankAccounts).where(eq(schema.bankAccounts.id, id))
 }
 
 // ----------------- Counterparties (Buyers) -----------------
 export async function getCounterparties(): Promise<Counterparty[]> {
-  const tauriDb = await getRawDb()
-  const rows = await tauriDb.select<any[]>('SELECT * FROM counterparties ORDER BY business_name ASC')
-  return rows.map((r) => ({
-    id: r.id,
-    business_name: r.business_name,
-    tax_id: r.tax_id,
-    director_name: r.director_name,
-    legal_address: r.legal_address,
-    actual_address: r.actual_address,
-    created_at: r.created_at,
+  const db = await getDb()
+  const rows = await db
+    .select()
+    .from(schema.counterparties)
+    .orderBy(asc(schema.counterparties.businessName))
+
+  return rows.map((c) => ({
+    id: c.id,
+    business_name: c.businessName,
+    tax_id: c.taxId,
+    director_name: c.directorName || undefined,
+    legal_address: c.legalAddress,
+    actual_address: c.actualAddress || undefined,
+    created_at: c.createdAt || undefined,
   }))
 }
 
 export async function saveCounterparty(counterparty: Partial<Counterparty>): Promise<number> {
-  const tauriDb = await getRawDb()
+  const db = await getDb()
 
   if (counterparty.id) {
-    await tauriDb.execute(
-      `UPDATE counterparties SET business_name = $1, tax_id = $2, director_name = $3, legal_address = $4, actual_address = $5 WHERE id = $6`,
-      [
-        counterparty.business_name,
-        counterparty.tax_id,
-        counterparty.director_name || null,
-        counterparty.legal_address,
-        counterparty.actual_address || null,
-        counterparty.id,
-      ]
-    )
+    await db
+      .update(schema.counterparties)
+      .set({
+        businessName: counterparty.business_name || '',
+        taxId: counterparty.tax_id || '',
+        directorName: counterparty.director_name || null,
+        legalAddress: counterparty.legal_address || '',
+        actualAddress: counterparty.actual_address || null,
+      })
+      .where(eq(schema.counterparties.id, counterparty.id))
     return counterparty.id
   } else {
-    const res = await tauriDb.execute(
-      `INSERT INTO counterparties (business_name, tax_id, director_name, legal_address, actual_address) VALUES ($1, $2, $3, $4, $5)`,
-      [
-        counterparty.business_name,
-        counterparty.tax_id,
-        counterparty.director_name || null,
-        counterparty.legal_address,
-        counterparty.actual_address || null,
-      ]
-    )
-    return res.lastInsertId ?? 0
+    await db.insert(schema.counterparties).values({
+      businessName: counterparty.business_name || '',
+      taxId: counterparty.tax_id || '',
+      directorName: counterparty.director_name || null,
+      legalAddress: counterparty.legal_address || '',
+      actualAddress: counterparty.actual_address || null,
+    })
+    const latest = await db
+      .select({ id: schema.counterparties.id })
+      .from(schema.counterparties)
+      .orderBy(desc(schema.counterparties.id))
+      .limit(1)
+    return latest[0].id
   }
 }
 
 export async function deleteCounterparty(id: number): Promise<void> {
-  const tauriDb = await getRawDb()
-  await tauriDb.execute('DELETE FROM counterparties WHERE id = $1', [id])
+  const db = await getDb()
+  const linkedInvoices = await db
+    .select({ id: schema.invoices.id })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.counterpartyId, id))
+
+  for (const inv of linkedInvoices) {
+    await db.delete(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, inv.id))
+  }
+  await db.delete(schema.invoices).where(eq(schema.invoices.counterpartyId, id))
+  await db.delete(schema.counterparties).where(eq(schema.counterparties.id, id))
 }
 
-// ----------------- Daily Invoice Number Generator -----------------
-export async function getNextInvoiceNumber(dateIsoString?: string): Promise<string> {
-  const targetDate = dateIsoString ? new Date(dateIsoString) : new Date()
-  const yyyy = targetDate.getFullYear()
-  const mm = String(targetDate.getMonth() + 1).padStart(2, '0')
-  const dd = String(targetDate.getDate()).padStart(2, '0')
-  const datePrefix = `${yyyy}${mm}${dd}`
+// ----------------- Invoices & Items -----------------
+export async function getNextInvoiceNumber(issueDateStr?: string): Promise<string> {
+  const db = await getDb()
+  const rows = await db
+    .select({ invoiceNumber: schema.invoices.invoiceNumber })
+    .from(schema.invoices)
+    .orderBy(desc(schema.invoices.id))
 
-  const tauriDb = await getRawDb()
-  const rows = await tauriDb.select<{ invoice_number: string }[]>(
-    `SELECT invoice_number FROM invoices WHERE invoice_number LIKE $1 ORDER BY invoice_number DESC LIMIT 1`,
-    [`${datePrefix}-%`]
-  )
+  const dateObj = issueDateStr ? new Date(issueDateStr) : new Date()
+  const year = dateObj.getFullYear()
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const prefix = `INV-${year}${month}-`
 
-  if (rows.length === 0) {
-    return `${datePrefix}-01`
-  }
-
-  const lastNum = rows[0].invoice_number
-  const parts = lastNum.split('-')
-  if (parts.length === 2) {
-    const seq = parseInt(parts[1], 10)
-    if (!isNaN(seq)) {
-      const nextSeq = String(seq + 1).padStart(2, '0')
-      return `${datePrefix}-${nextSeq}`
+  let maxSeq = 0
+  for (const r of rows) {
+    if (r.invoiceNumber && r.invoiceNumber.startsWith(prefix)) {
+      const seqStr = r.invoiceNumber.replace(prefix, '')
+      const seqNum = parseInt(seqStr, 10)
+      if (!isNaN(seqNum) && seqNum > maxSeq) {
+        maxSeq = seqNum
+      }
     }
   }
 
-  return `${datePrefix}-01`
+  const nextSeq = String(maxSeq + 1).padStart(2, '0')
+  return `${prefix}${nextSeq}`
 }
 
-// ----------------- Invoices Ledger & Items -----------------
 export async function getInvoices(filters?: {
   startDate?: string
   endDate?: string
   counterpartyId?: number
   status?: InvoiceStatus | 'ALL'
 }): Promise<InvoiceWithDetails[]> {
-  const tauriDb = await getRawDb()
+  const db = await getDb()
+  let rows = await db.query.invoices.findMany({
+    with: {
+      counterparty: true,
+      bankAccount: true,
+      items: true,
+    },
+    orderBy: [desc(schema.invoices.id)],
+  })
 
-  let query = `
-    SELECT
-      i.*,
-      c.business_name as c_business_name, c.tax_id as c_tax_id, c.director_name as c_director_name, c.legal_address as c_legal_address, c.actual_address as c_actual_address,
-      b.account_label as b_account_label, b.beneficiary_name as b_beneficiary_name, b.bank_name as b_bank_name, b.bank_address as b_bank_address, b.iban as b_iban, b.swift_bic as b_swift_bic, b.intermediary_bank_name as b_intermediary_bank_name, b.intermediary_swift as b_intermediary_swift
-    FROM invoices i
-    LEFT JOIN counterparties c ON i.counterparty_id = c.id
-    LEFT JOIN bank_accounts b ON i.bank_account_id = b.id
-    WHERE 1=1
-  `
-  const params: any[] = []
-  let paramIndex = 1
-
-  if (filters?.startDate) {
-    query += ` AND i.issue_date >= $${paramIndex++}`
-    params.push(filters.startDate)
-  }
-  if (filters?.endDate) {
-    query += ` AND i.issue_date <= $${paramIndex++}`
-    params.push(filters.endDate)
-  }
-  if (filters?.counterpartyId) {
-    query += ` AND i.counterparty_id = $${paramIndex++}`
-    params.push(filters.counterpartyId)
-  }
-  if (filters?.status && filters.status !== 'ALL') {
-    query += ` AND i.status = $${paramIndex++}`
-    params.push(filters.status)
+  if (filters) {
+    if (filters.startDate) {
+      rows = rows.filter((r) => r.issueDate >= filters.startDate!)
+    }
+    if (filters.endDate) {
+      rows = rows.filter((r) => r.issueDate <= filters.endDate!)
+    }
+    if (filters.counterpartyId) {
+      rows = rows.filter((r) => r.counterpartyId === filters.counterpartyId)
+    }
+    if (filters.status && filters.status !== 'ALL') {
+      rows = rows.filter((r) => r.status === filters.status)
+    }
   }
 
-  query += ` ORDER BY i.issue_date DESC, i.id DESC`
-
-  const rows = await tauriDb.select<any[]>(query, params)
-
-  const result: InvoiceWithDetails[] = []
-  for (const r of rows) {
-    const items = await tauriDb.select<InvoiceItem[]>(
-      `SELECT * FROM invoice_items WHERE invoice_id = $1 ORDER BY item_order ASC`,
-      [r.id]
-    )
-
-    result.push({
-      id: r.id,
-      invoice_number: r.invoice_number,
-      issue_date: r.issue_date,
-      due_date: r.due_date,
-      counterparty_id: r.counterparty_id,
-      bank_account_id: r.bank_account_id,
-      currency: r.currency as Currency,
-      total_amount: r.total_amount,
-      amount_in_words: r.amount_in_words,
-      notes: r.notes,
-      status: r.status as InvoiceStatus,
-      created_at: r.created_at,
-      counterparty: r.c_business_name
-        ? {
-            id: r.counterparty_id,
-            business_name: r.c_business_name,
-            tax_id: r.c_tax_id,
-            director_name: r.c_director_name,
-            legal_address: r.c_legal_address,
-            actual_address: r.c_actual_address,
-          }
-        : undefined,
-      bank_account: r.b_account_label
-        ? {
-            id: r.bank_account_id,
-            profile_id: 1,
-            account_label: r.b_account_label,
-            beneficiary_name: r.b_beneficiary_name,
-            bank_name: r.b_bank_name,
-            bank_address: r.b_bank_address,
-            iban: r.b_iban,
-            swift_bic: r.b_swift_bic,
-            intermediary_bank_name: r.b_intermediary_bank_name,
-            intermediary_swift: r.b_intermediary_swift,
-            is_default: false,
-          }
-        : undefined,
-      items,
-    })
-  }
-
-  return result
+  return rows.map((inv) => ({
+    id: inv.id,
+    invoice_number: inv.invoiceNumber,
+    issue_date: inv.issueDate,
+    due_date: inv.dueDate || undefined,
+    counterparty_id: inv.counterpartyId,
+    bank_account_id: inv.bankAccountId,
+    currency: inv.currency as Currency,
+    total_amount: inv.totalAmount,
+    amount_in_words: inv.amountInWords,
+    notes: inv.notes || undefined,
+    status: (inv.status as InvoiceStatus) || 'ISSUED',
+    created_at: inv.createdAt || undefined,
+    counterparty: inv.counterparty
+      ? {
+          id: inv.counterparty.id,
+          business_name: inv.counterparty.businessName,
+          tax_id: inv.counterparty.taxId,
+          director_name: inv.counterparty.directorName || undefined,
+          legal_address: inv.counterparty.legalAddress,
+          actual_address: inv.counterparty.actualAddress || undefined,
+        }
+      : undefined,
+    bank_account: inv.bankAccount
+      ? {
+          id: inv.bankAccount.id,
+          profile_id: inv.bankAccount.profileId,
+          account_label: inv.bankAccount.accountLabel,
+          beneficiary_name: inv.bankAccount.beneficiaryName,
+          bank_name: inv.bankAccount.bankName,
+          bank_address: inv.bankAccount.bankAddress || undefined,
+          iban: inv.bankAccount.iban,
+          swift_bic: inv.bankAccount.swiftBic,
+          intermediary_bank_name: inv.bankAccount.intermediaryBankName || undefined,
+          intermediary_swift: inv.bankAccount.intermediarySwift || undefined,
+          is_default: Boolean(inv.bankAccount.isDefault),
+        }
+      : undefined,
+    items: (inv.items || []).map((it) => ({
+      id: it.id,
+      invoice_id: it.invoiceId,
+      item_order: it.itemOrder,
+      description: it.description,
+      unit: it.unit,
+      unit_price: it.unitPrice,
+      quantity: it.quantity,
+      amount: it.amount,
+    })),
+  }))
 }
 
-export async function saveInvoice(
-  invoice: Partial<Invoice>,
-  items: InvoiceItem[]
-): Promise<number> {
-  const tauriDb = await getRawDb()
-
+export async function saveInvoice(invoice: Partial<Invoice>, items: any[]): Promise<number> {
+  const db = await getDb()
   let invoiceId = invoice.id
 
   if (invoiceId) {
-    await tauriDb.execute(
-      `UPDATE invoices SET
-        invoice_number = $1, issue_date = $2, due_date = $3, counterparty_id = $4,
-        bank_account_id = $5, currency = $6, total_amount = $7, amount_in_words = $8,
-        notes = $9, status = $10
-       WHERE id = $11`,
-      [
-        invoice.invoice_number,
-        invoice.issue_date,
-        invoice.due_date || null,
-        invoice.counterparty_id,
-        invoice.bank_account_id,
-        invoice.currency,
-        invoice.total_amount,
-        invoice.amount_in_words,
-        invoice.notes || null,
-        invoice.status || 'ISSUED',
-        invoiceId,
-      ]
-    )
-    await tauriDb.execute('DELETE FROM invoice_items WHERE invoice_id = $1', [invoiceId])
+    await db
+      .update(schema.invoices)
+      .set({
+        invoiceNumber: invoice.invoice_number || '',
+        issueDate: invoice.issue_date || '',
+        dueDate: invoice.due_date || null,
+        counterpartyId: invoice.counterparty_id!,
+        bankAccountId: invoice.bank_account_id!,
+        currency: invoice.currency || 'GEL',
+        totalAmount: invoice.total_amount || 0,
+        amountInWords: invoice.amount_in_words || '',
+        notes: invoice.notes || null,
+        status: invoice.status || 'ISSUED',
+      })
+      .where(eq(schema.invoices.id, invoiceId))
+
+    await db.delete(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, invoiceId))
   } else {
-    const res = await tauriDb.execute(
-      `INSERT INTO invoices (
-        invoice_number, issue_date, due_date, counterparty_id, bank_account_id,
-        currency, total_amount, amount_in_words, notes, status
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [
-        invoice.invoice_number,
-        invoice.issue_date,
-        invoice.due_date || null,
-        invoice.counterparty_id,
-        invoice.bank_account_id,
-        invoice.currency,
-        invoice.total_amount,
-        invoice.amount_in_words,
-        invoice.notes || null,
-        invoice.status || 'ISSUED',
-      ]
-    )
-    invoiceId = res.lastInsertId ?? 0
+    await db.insert(schema.invoices).values({
+      invoiceNumber: invoice.invoice_number || '',
+      issueDate: invoice.issue_date || '',
+      dueDate: invoice.due_date || null,
+      counterpartyId: invoice.counterparty_id!,
+      bankAccountId: invoice.bank_account_id!,
+      currency: invoice.currency || 'GEL',
+      totalAmount: invoice.total_amount || 0,
+      amountInWords: invoice.amount_in_words || '',
+      notes: invoice.notes || null,
+      status: invoice.status || 'ISSUED',
+    })
+    const latest = await db
+      .select({ id: schema.invoices.id })
+      .from(schema.invoices)
+      .orderBy(desc(schema.invoices.id))
+      .limit(1)
+    invoiceId = latest[0].id
   }
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]
-    await tauriDb.execute(
-      `INSERT INTO invoice_items (invoice_id, item_order, description, unit, unit_price, quantity, amount)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [invoiceId, i + 1, item.description, item.unit, item.unit_price, item.quantity, item.amount]
-    )
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx]
+    await db.insert(schema.invoiceItems).values({
+      invoiceId: invoiceId!,
+      itemOrder: idx + 1,
+      description: item.description || '',
+      unit: item.unit || 'unit',
+      unitPrice: item.unit_price || 0,
+      quantity: item.quantity || 1,
+      amount: item.amount || 0,
+    })
   }
 
-  return invoiceId
-}
-
-export async function updateInvoiceStatus(id: number, status: InvoiceStatus): Promise<void> {
-  const tauriDb = await getRawDb()
-  await tauriDb.execute('UPDATE invoices SET status = $1 WHERE id = $2', [status, id])
+  return invoiceId!
 }
 
 export async function deleteInvoice(id: number): Promise<void> {
-  const tauriDb = await getRawDb()
-  await tauriDb.execute('DELETE FROM invoices WHERE id = $1', [id])
+  const db = await getDb()
+  await db.delete(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, id))
+  await db.delete(schema.invoices).where(eq(schema.invoices.id, id))
+}
+
+export async function updateInvoiceStatus(id: number, status: string): Promise<void> {
+  const db = await getDb()
+  await db.update(schema.invoices).set({ status }).where(eq(schema.invoices.id, id))
 }
