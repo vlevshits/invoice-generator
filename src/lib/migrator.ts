@@ -7,8 +7,29 @@ const migrationFiles = import.meta.glob('/drizzle/*.sql', {
   import: 'default',
 }) as Record<string, string>
 
+export async function ensureDbSchemaColumns(rawDb: Database): Promise<void> {
+  const alterStatements = [
+    'ALTER TABLE profiles ADD COLUMN email TEXT;',
+    'ALTER TABLE profiles ADD COLUMN default_payment_terms TEXT;',
+    'ALTER TABLE profiles ADD COLUMN custom_typst_template TEXT;',
+    'ALTER TABLE counterparties ADD COLUMN email TEXT;',
+    'ALTER TABLE invoices ADD COLUMN paid_date TEXT;',
+  ]
+
+  for (const sql of alterStatements) {
+    try {
+      await rawDb.execute(sql)
+    } catch {
+      // Column already exists, ignore
+    }
+  }
+}
+
 export async function runDrizzleMigrations(rawDb: Database): Promise<void> {
   try {
+    // 0. Guarantee all schema columns exist
+    await ensureDbSchemaColumns(rawDb)
+
     // 1. Ensure Drizzle migration tracking table exists
     await rawDb.execute(`
       CREATE TABLE IF NOT EXISTS __drizzle_migrations (
