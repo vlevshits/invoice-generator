@@ -291,7 +291,10 @@ pub struct OAuthTokens {
 }
 
 #[tauri::command]
-async fn start_google_oauth(client_id: String) -> Result<OAuthTokens, String> {
+async fn start_google_oauth(
+    client_id: String,
+    client_secret: Option<String>,
+) -> Result<OAuthTokens, String> {
     let port = 9876;
     let redirect_uri = format!("http://127.0.0.1:{}/callback", port);
 
@@ -327,14 +330,22 @@ async fn start_google_oauth(client_id: String) -> Result<OAuthTokens, String> {
     let code = auth_code.ok_or_else(|| "OAuth code retrieval timed out or was cancelled".to_string())?;
 
     let client = reqwest::Client::new();
+    let mut params = vec![
+        ("client_id", client_id.clone()),
+        ("code", code),
+        ("grant_type", "authorization_code".to_string()),
+        ("redirect_uri", redirect_uri),
+    ];
+
+    if let Some(secret) = client_secret {
+        if !secret.trim().is_empty() {
+            params.push(("client_secret", secret.trim().to_string()));
+        }
+    }
+
     let token_resp = client
         .post("https://oauth2.googleapis.com/token")
-        .form(&[
-            ("client_id", client_id.as_str()),
-            ("code", code.as_str()),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", redirect_uri.as_str()),
-        ])
+        .form(&params)
         .send()
         .await
         .map_err(|e| format!("Failed to request tokens from Google: {}", e))?;

@@ -12,7 +12,7 @@ interface DriveSyncBadgeProps {
 }
 
 export function DriveSyncBadge({ invoiceNumber, pdfPath, onSyncSuccess }: DriveSyncBadgeProps) {
-  const { googleAccessToken, googleClientId, setGoogleAccessToken } = useAppStore()
+  const { googleAccessToken, googleClientId, googleClientSecret, setGoogleAccessToken } = useAppStore()
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
@@ -22,7 +22,10 @@ export function DriveSyncBadge({ invoiceNumber, pdfPath, onSyncSuccess }: DriveS
 
     try {
       setIsSyncing(true)
-      const tokens: any = await invoke('start_google_oauth', { clientId: activeClientId })
+      const tokens: any = await invoke('start_google_oauth', {
+        clientId: activeClientId,
+        clientSecret: googleClientSecret || undefined,
+      })
       if (tokens && tokens.access_token) {
         setGoogleAccessToken(tokens.access_token)
       }

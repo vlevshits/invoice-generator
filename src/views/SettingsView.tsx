@@ -38,8 +38,14 @@ import {
 } from 'lucide-react'
 
 export function SettingsView() {
-  const { googleAccessToken, googleClientId, setGoogleAccessToken, setGoogleClientId } =
-    useAppStore()
+  const {
+    googleAccessToken,
+    googleClientId,
+    googleClientSecret,
+    setGoogleAccessToken,
+    setGoogleClientId,
+    setGoogleClientSecret,
+  } = useAppStore()
 
   // Seller Profile Form
   const [businessName, setBusinessName] = useState('')
@@ -65,6 +71,7 @@ export function SettingsView() {
 
   const [isOAuthRunning, setIsOAuthRunning] = useState(false)
   const [customClientIdInput, setCustomClientIdInput] = useState(googleClientId)
+  const [customClientSecretInput, setCustomClientSecretInput] = useState(googleClientSecret)
   const [showAdvancedOAuth, setShowAdvancedOAuth] = useState(false)
 
   const loadData = async () => {
@@ -153,11 +160,17 @@ export function SettingsView() {
 
     try {
       setIsOAuthRunning(true)
-      const tokens: any = await invoke('start_google_oauth', { clientId: activeClientId })
+      const tokens: any = await invoke('start_google_oauth', {
+        clientId: activeClientId,
+        clientSecret: customClientSecretInput || undefined,
+      })
       if (tokens && tokens.access_token) {
         setGoogleAccessToken(tokens.access_token)
         if (customClientIdInput) {
           setGoogleClientId(customClientIdInput)
+        }
+        if (customClientSecretInput) {
+          setGoogleClientSecret(customClientSecretInput)
         }
         alert('Google Drive authorization successful!')
       }
@@ -399,28 +412,46 @@ export function SettingsView() {
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 cursor-pointer font-medium"
             >
               {showAdvancedOAuth ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              Advanced OAuth Settings (Optional Custom GCP Client ID)
+              Advanced OAuth Settings (Custom GCP Credentials)
             </button>
 
             {showAdvancedOAuth && (
               <div className="mt-3 p-4 rounded-md border border-border bg-card space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1">
-                    Custom Google OAuth Client ID
-                  </label>
-                  <Input
-                    placeholder="Leave blank to use pre-configured Desktop Client ID"
-                    value={customClientIdInput}
-                    onChange={(e) => {
-                      setCustomClientIdInput(e.target.value)
-                      setGoogleClientId(e.target.value)
-                    }}
-                    mono
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    By default, the app uses a pre-configured Desktop OAuth Client ID. You can optionally supply your own Client ID from Google Cloud Console.
-                  </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">
+                      Custom Google OAuth Client ID
+                    </label>
+                    <Input
+                      placeholder="Leave blank to use default Client ID"
+                      value={customClientIdInput}
+                      onChange={(e) => {
+                        setCustomClientIdInput(e.target.value)
+                        setGoogleClientId(e.target.value)
+                      }}
+                      mono
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">
+                      Custom Google OAuth Client Secret (If Web App Type)
+                    </label>
+                    <Input
+                      type="password"
+                      placeholder="GOCSPX-..."
+                      value={customClientSecretInput}
+                      onChange={(e) => {
+                        setCustomClientSecretInput(e.target.value)
+                        setGoogleClientSecret(e.target.value)
+                      }}
+                      mono
+                    />
+                  </div>
                 </div>
+                <p className="text-[11px] text-muted-foreground">
+                  If your Google OAuth Client ID was created as a Web Application type in Google Cloud Console, enter its Client Secret above.
+                </p>
               </div>
             )}
           </div>

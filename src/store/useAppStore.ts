@@ -17,12 +17,14 @@ interface AppState {
   editingInvoice: InvoiceWithDetails | null
   googleAccessToken: string | null
   googleClientId: string
+  googleClientSecret: string
 
   setCurrentView: (view: ActiveView) => void
   startCreateInvoice: () => void
   startEditInvoice: (invoice: InvoiceWithDetails) => void
   setGoogleAccessToken: (token: string | null) => void
   setGoogleClientId: (clientId: string) => void
+  setGoogleClientSecret: (clientSecret: string) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -30,6 +32,7 @@ export const useAppStore = create<AppState>((set) => ({
   editingInvoice: null,
   googleAccessToken: localStorage.getItem('google_drive_token'),
   googleClientId: localStorage.getItem('google_client_id') || '',
+  googleClientSecret: localStorage.getItem('google_client_secret') || '',
 
   setCurrentView: (view) => set({ currentView: view }),
 
@@ -57,5 +60,10 @@ export const useAppStore = create<AppState>((set) => ({
   setGoogleClientId: (clientId) => {
     localStorage.setItem('google_client_id', clientId)
     set({ googleClientId: clientId })
+  },
+
+  setGoogleClientSecret: (clientSecret) => {
+    localStorage.setItem('google_client_secret', clientSecret)
+    set({ googleClientSecret: clientSecret })
   },
 }))
