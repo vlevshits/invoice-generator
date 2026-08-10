@@ -39,9 +39,9 @@ jobs:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
 
       - name: Install Typst CLI
-        uses: typst-community/setup-typst@v1
+        uses: typst-community/setup-typst@v3
         with:
-          typst-version: 'latest'
+          version: 'v0.13.0'
 
       - name: Install Linux build dependencies
         if: matrix.platform == 'ubuntu-22.04'
