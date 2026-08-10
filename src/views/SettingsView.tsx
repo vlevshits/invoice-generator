@@ -353,7 +353,7 @@ export function SettingsView() {
           Settings & Profile
         </h2>
         <p className="text-sm text-muted-foreground">
-          Configure your legal seller details, default payment terms, custom PDF layout template, bank accounts, and Google Drive.
+          Configure your legal seller details, default payment terms, bank accounts, custom PDF layout template, and Google Drive.
         </p>
       </div>
 
@@ -443,63 +443,7 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
-      {/* 2. Custom Typst Invoice Template Card */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              <FileCode className="h-4 w-4 text-primary" />
-              Custom PDF Invoice Template (Typst Markup)
-            </CardTitle>
-            <CardDescription>
-              Customize your PDF layout using clean Typst markup. Dynamic placeholder tags are substituted automatically.
-            </CardDescription>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleResetTemplate}
-            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset to Default
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <span className="text-xs font-medium text-muted-foreground block mb-2">
-              Available Placeholder Variables:
-            </span>
-            <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
-              {templateVariables.map((v) => (
-                <span key={v} className="bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20">
-                  {v}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <textarea
-              rows={14}
-              value={customTypstTemplate}
-              onChange={(e) => setCustomTypstTemplate(e.target.value)}
-              className="w-full rounded-md border border-input bg-muted/40 p-4 text-xs font-mono text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring leading-relaxed resize-y"
-              placeholder="Enter Typst markup template..."
-            />
-          </div>
-
-          <div className="pt-1 flex justify-end">
-            <Button onClick={handleSaveProfile} className="gap-2">
-              <Save className="h-4 w-4" />
-              Save Custom Template
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 3. Multi-Bank Accounts Manager Card */}
+      {/* 2. Multi-Bank Accounts Manager Card */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -575,6 +519,62 @@ export function SettingsView() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* 3. Custom Typst Invoice Template Card */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileCode className="h-4 w-4 text-primary" />
+              Custom PDF Invoice Template (Typst Markup)
+            </CardTitle>
+            <CardDescription>
+              Customize your PDF layout using clean Typst markup. Dynamic placeholder tags are substituted automatically.
+            </CardDescription>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResetTemplate}
+            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset to Default
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <span className="text-xs font-medium text-muted-foreground block mb-2">
+              Available Placeholder Variables:
+            </span>
+            <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
+              {templateVariables.map((v) => (
+                <span key={v} className="bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20">
+                  {v}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <textarea
+              rows={14}
+              value={customTypstTemplate}
+              onChange={(e) => setCustomTypstTemplate(e.target.value)}
+              className="w-full rounded-md border border-input bg-muted/40 p-4 text-xs font-mono text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring leading-relaxed resize-y"
+              placeholder="Enter Typst markup template..."
+            />
+          </div>
+
+          <div className="pt-1 flex justify-end">
+            <Button onClick={handleSaveProfile} className="gap-2">
+              <Save className="h-4 w-4" />
+              Save Custom Template
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
