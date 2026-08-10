@@ -39,7 +39,27 @@ export async function runDrizzleMigrations(rawDb: Database): Promise<void> {
             .filter((s) => s.length > 0)
 
           for (const stmt of statements) {
-            await rawDb.execute(stmt)
+            const safeStmt = stmt
+              .replace(/^CREATE TABLE\s+`/i, 'CREATE TABLE IF NOT EXISTS `')
+              .replace(/^CREATE TABLE\s+/i, 'CREATE TABLE IF NOT EXISTS ')
+              .replace(/^CREATE UNIQUE INDEX\s+`/i, 'CREATE UNIQUE INDEX IF NOT EXISTS `')
+              .replace(/^CREATE UNIQUE INDEX\s+/i, 'CREATE UNIQUE INDEX IF NOT EXISTS ')
+              .replace(/^CREATE INDEX\s+`/i, 'CREATE INDEX IF NOT EXISTS `')
+              .replace(/^CREATE INDEX\s+/i, 'CREATE INDEX IF NOT EXISTS ')
+
+            try {
+              await rawDb.execute(safeStmt)
+            } catch (err: any) {
+              const msg = String(err?.message || err).toLowerCase()
+              if (
+                msg.includes('already exists') ||
+                msg.includes('duplicate column name')
+              ) {
+                continue
+              }
+              console.error(`[Drizzle Migration Error] Failed statement: ${stmt}`, err)
+              throw err
+            }
           }
 
           await rawDb.execute(
