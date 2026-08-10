@@ -136,7 +136,7 @@ export function CounterpartiesView() {
       {/* Grid of Counterparties */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((c) => (
-          <Card key={c.id} className="relative group hover:border-primary/50 transition-all">
+          <Card key={c.id} className="relative group hover:border-primary/50 transition-all flex flex-col justify-between h-full">
             <CardHeader className="py-4">
               <div className="flex items-center gap-3 overflow-hidden">
                 <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
@@ -150,34 +150,36 @@ export function CounterpartiesView() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-2.5 text-xs py-2">
-              {c.director_name && (
+            <CardContent className="text-xs py-2 flex-1 flex flex-col justify-between">
+              <div className="space-y-2.5">
+                {c.director_name && (
+                  <div>
+                    <span className="font-semibold text-foreground text-xs block">Director / Rep</span>
+                    <p className="text-muted-foreground">{c.director_name}</p>
+                  </div>
+                )}
+                {c.email && (
+                  <div>
+                    <span className="font-semibold text-foreground text-xs block">Email</span>
+                    <p className="font-mono text-indigo-400 flex items-center gap-1">
+                      <Mail className="h-3 w-3 shrink-0" />
+                      {c.email}
+                    </p>
+                  </div>
+                )}
                 <div>
-                  <span className="font-semibold text-foreground text-xs block">Director / Rep</span>
-                  <p className="text-muted-foreground">{c.director_name}</p>
+                  <span className="font-semibold text-foreground text-xs block">Legal Address</span>
+                  <p className="text-muted-foreground leading-relaxed">{c.legal_address}</p>
                 </div>
-              )}
-              {c.email && (
-                <div>
-                  <span className="font-semibold text-foreground text-xs block">Email</span>
-                  <p className="font-mono text-indigo-400 flex items-center gap-1">
-                    <Mail className="h-3 w-3 shrink-0" />
-                    {c.email}
-                  </p>
-                </div>
-              )}
-              <div>
-                <span className="font-semibold text-foreground text-xs block">Legal Address</span>
-                <p className="text-muted-foreground leading-relaxed">{c.legal_address}</p>
+                {c.actual_address && (
+                  <div>
+                    <span className="font-semibold text-foreground text-xs block">Actual Address</span>
+                    <p className="text-muted-foreground leading-relaxed">{c.actual_address}</p>
+                  </div>
+                )}
               </div>
-              {c.actual_address && (
-                <div>
-                  <span className="font-semibold text-foreground text-xs block">Actual Address</span>
-                  <p className="text-muted-foreground leading-relaxed">{c.actual_address}</p>
-                </div>
-              )}
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/60">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/60 mt-4">
                 <Button
                   variant="ghost"
                   size="sm"
