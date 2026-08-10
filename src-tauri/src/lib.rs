@@ -497,6 +497,17 @@ pub fn run() {
         description: "add_default_payment_terms_to_profiles",
         sql: "ALTER TABLE profiles ADD COLUMN default_payment_terms TEXT;",
         kind: MigrationKind::Up,
+    }, Migration {
+        version: 3,
+        description: "purge_dummy_seed_data",
+        sql: "
+        DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE bank_account_id IN (SELECT id FROM bank_accounts WHERE iban = 'GE00BG0000000000000000'));
+        DELETE FROM invoices WHERE bank_account_id IN (SELECT id FROM bank_accounts WHERE iban = 'GE00BG0000000000000000');
+        DELETE FROM bank_accounts WHERE iban = 'GE00BG0000000000000000' OR account_label LIKE '%Main Bank Account%';
+        DELETE FROM counterparties WHERE tax_id = '987654321' OR business_name = 'Acme Client Corporation';
+        DELETE FROM profiles WHERE tax_id = '123456789' AND business_name = 'Your Business Name';
+        ",
+        kind: MigrationKind::Up,
     }];
 
     tauri::Builder::default()

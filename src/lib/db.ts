@@ -169,6 +169,8 @@ export async function saveBankAccount(account: Partial<BankAccount>): Promise<vo
 
 export async function deleteBankAccount(id: number): Promise<void> {
   const tauriDb = await getRawDb()
+  await tauriDb.execute('DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE bank_account_id = $1)', [id])
+  await tauriDb.execute('DELETE FROM invoices WHERE bank_account_id = $1', [id])
   await tauriDb.execute('DELETE FROM bank_accounts WHERE id = $1', [id])
 }
 
