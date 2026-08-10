@@ -1,5 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getInvoices, getProfile } from '@/lib/db'
+import { useAppStore } from '@/store/useAppStore'
+
+let isAutoSyncing = false
 
 export async function performFullGoogleDriveSync(
   accessToken: string,
@@ -25,14 +28,17 @@ export async function performFullGoogleDriveSync(
     return
   }
 
-  // 1. Generate CSV summary for Google Sheet export
-  onProgress?.('Exporting Invoices Summary to Google Sheet...')
-  const csvHeaders = 'Invoice Number,Issue Date,Due Date,Buyer Name,Buyer Tax ID,Currency,Total Amount,Status\n'
+  // 1. Generate CSV summary for Google Sheet export (updates existing sheet without duplicates)
+  onProgress?.('Updating Invoices Summary Google Sheet...')
+  const csvHeaders =
+    'Invoice Number,Issue Date,Due Date,Paid Date,Buyer Name,Buyer Tax ID,Currency,Total Amount,Status\n'
   const csvRows = invoices
     .map((inv) => {
       const buyerName = (inv.counterparty?.business_name || '').replace(/"/g, '""')
       const taxId = inv.counterparty?.tax_id || ''
-      return `"${inv.invoice_number}","${inv.issue_date}","${inv.due_date || ''}","${buyerName}","${taxId}","${inv.currency}",${inv.total_amount.toFixed(2)},"${inv.status}"`
+      return `"${inv.invoice_number}","${inv.issue_date}","${inv.due_date || ''}","${
+        inv.paid_date || ''
+      }","${buyerName}","${taxId}","${inv.currency}",${inv.total_amount.toFixed(2)},"${inv.status}"`
     })
     .join('\n')
 
@@ -45,15 +51,16 @@ export async function performFullGoogleDriveSync(
     csvContent,
   })
 
-  // 2. Batch upload invoice PDFs into the folder
+  // 2. Batch upload & replace invoice PDFs into the folder (updates existing files without duplicates)
   for (let i = 0; i < invoices.length; i++) {
     const inv = invoices[i]
-    onProgress?.(`Generating & uploading PDF (${i + 1}/${invoices.length}): ${inv.invoice_number}...`)
+    onProgress?.(`Syncing PDF (${i + 1}/${invoices.length}): ${inv.invoice_number}...`)
 
     const payload = {
       invoice_number: inv.invoice_number,
       issue_date: inv.issue_date,
       due_date: inv.due_date,
+      paid_date: inv.paid_date,
       seller_name: profile?.business_name || 'Your Business Name',
       seller_tax_id: profile?.tax_id || '123456789',
       seller_address: profile?.legal_address || 'Address',
@@ -98,4 +105,21 @@ export async function performFullGoogleDriveSync(
   }
 
   onProgress?.('Full Google Drive Sync completed successfully!')
+}
+
+export async function autoSyncGoogleDriveIfConnected(): Promise<void> {
+  const store = useAppStore.getState()
+  if (!store.googleAccessToken || isAutoSyncing) return
+
+  try {
+    isAutoSyncing = true
+    await performFullGoogleDriveSync(
+      store.googleAccessToken,
+      store.googleDriveFolderName || 'Invoice Generator'
+    )
+  } catch (err) {
+    console.error('Auto Drive sync background notice:', err)
+  } finally {
+    isAutoSyncing = false
+  }
 }

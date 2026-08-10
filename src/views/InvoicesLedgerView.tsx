@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import type { InvoiceWithDetails, Counterparty, InvoiceStatus } from '@/types'
 import { getInvoices, getCounterparties, deleteInvoice, updateInvoiceStatus } from '@/lib/db'
+import { getValidTransitions, type StateTransition } from '@/lib/invoiceStateMachine'
 import { useAppStore } from '@/store/useAppStore'
 import { performFullGoogleDriveSync } from '@/lib/driveSync'
 import { DriveSyncBadge } from '@/components/domain/DriveSyncBadge'
+import { RecordPaymentModal } from '@/components/domain/RecordPaymentModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -38,6 +40,8 @@ import {
   FileText,
   Cloud,
   Loader2,
+  AlertTriangle,
+  RotateCcw,
 } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -62,6 +66,13 @@ export function InvoicesLedgerView() {
   // Drive Syncing State
   const [isSyncingDrive, setIsSyncingDrive] = useState(false)
   const [syncProgress, setSyncProgress] = useState('')
+
+  // Payment Date Modal
+  const [paymentModalState, setPaymentModalState] = useState<{
+    isOpen: boolean
+    invoice?: InvoiceWithDetails
+    targetStatus?: InvoiceStatus
+  }>({ isOpen: false })
 
   const loadData = async () => {
     try {
@@ -95,9 +106,32 @@ export function InvoicesLedgerView() {
     }
   }
 
-  const handleStatusChange = async (id: number, status: InvoiceStatus) => {
-    await updateInvoiceStatus(id, status)
+  const handleStateTransition = async (
+    inv: InvoiceWithDetails,
+    transition: StateTransition
+  ) => {
+    if (transition.requiresPaidDateModal) {
+      setPaymentModalState({
+        isOpen: true,
+        invoice: inv,
+        targetStatus: transition.targetStatus,
+      })
+      return
+    }
+    await updateInvoiceStatus(inv.id!, transition.targetStatus)
     loadData()
+  }
+
+  const handleConfirmPaidDate = async (paidDate: string) => {
+    if (paymentModalState.invoice?.id) {
+      await updateInvoiceStatus(
+        paymentModalState.invoice.id,
+        paymentModalState.targetStatus || 'PAID',
+        paidDate
+      )
+      loadData()
+    }
+    setPaymentModalState({ isOpen: false })
   }
 
   const handleDownloadPdf = async (inv: InvoiceWithDetails) => {
@@ -106,6 +140,7 @@ export function InvoicesLedgerView() {
         invoice_number: inv.invoice_number,
         issue_date: inv.issue_date,
         due_date: inv.due_date,
+        paid_date: inv.paid_date,
         seller_name: 'Your Business Name',
         seller_tax_id: '123456789',
         seller_address: 'Address',
@@ -172,18 +207,10 @@ export function InvoicesLedgerView() {
   }
 
   const getStatusBadge = (status: InvoiceStatus) => {
-    switch (status) {
-      case 'PAID':
-        return <Badge variant="paid">PAID</Badge>
-      case 'ISSUED':
-        return <Badge variant="issued">ISSUED</Badge>
-      case 'DRAFT':
-        return <Badge variant="draft">DRAFT</Badge>
-      case 'CANCELLED':
-        return <Badge variant="cancelled">CANCELLED</Badge>
-      default:
-        return <Badge variant="outline">{status}</Badge>
+    if (status === 'PAID') {
+      return <Badge variant="paid">PAID</Badge>
     }
+    return <Badge variant="draft">DRAFT</Badge>
   }
 
   return (
@@ -294,10 +321,8 @@ export function InvoicesLedgerView() {
               className="w-full h-9 rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="ALL">All Statuses</option>
-              <option value="ISSUED">ISSUED</option>
-              <option value="PAID">PAID</option>
               <option value="DRAFT">DRAFT</option>
-              <option value="CANCELLED">CANCELLED</option>
+              <option value="PAID">PAID</option>
             </select>
           </div>
         </CardContent>
@@ -309,112 +334,138 @@ export function InvoicesLedgerView() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="w-[140px] font-mono font-semibold">Invoice No.</TableHead>
-                <TableHead>Buyer / Counterparty</TableHead>
-                <TableHead className="w-[110px]">Issue Date</TableHead>
-                <TableHead className="w-[100px]">Status</TableHead>
-                <TableHead className="text-right w-[140px]">Total Amount</TableHead>
-                <TableHead className="text-center w-[160px]">Google Drive</TableHead>
+                <TableHead className="w-[160px] font-mono font-semibold">Invoice No.</TableHead>
+                <TableHead className="min-w-[280px]">Buyer / Counterparty</TableHead>
+                <TableHead className="w-[120px]">Issue Date</TableHead>
+                <TableHead className="w-[130px]">Status</TableHead>
+                <TableHead className="text-right w-[150px]">Total Amount</TableHead>
                 <TableHead className="w-[80px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                     <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
                     Loading invoices...
                   </TableCell>
                 </TableRow>
               ) : invoices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                     <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-50" />
                     No invoices found matching the current filters.
                   </TableCell>
                 </TableRow>
               ) : (
-                invoices.map((inv) => (
-                  <TableRow key={inv.id} className="group">
-                    <TableCell className="font-mono font-semibold">
-                      <button
-                        onClick={() => startEditInvoice(inv)}
-                        className="text-primary hover:underline hover:text-emerald-400 font-mono font-bold transition-colors cursor-pointer text-left inline-flex items-center gap-1 group/btn"
-                        title="Click to view and edit invoice details"
-                      >
-                        {inv.invoice_number}
-                      </button>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium text-foreground">
-                        {inv.counterparty?.business_name || 'N/A'}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground font-mono">
-                        Tax ID: {inv.counterparty?.tax_id}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs font-mono text-muted-foreground">
-                      {inv.issue_date}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(inv.status)}</TableCell>
-                    <TableCell className="text-right font-mono font-bold text-foreground">
-                      {inv.currency === 'EUR' ? '€' : inv.currency === 'USD' ? '$' : inv.currency === 'GBP' ? '£' : 'GEL '}
-                      {inv.total_amount.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <DriveSyncBadge invoiceNumber={inv.invoice_number} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuItem onClick={() => handleDownloadPdf(inv)}>
-                            <Download className="h-4 w-4 mr-2 text-primary" />
-                            Download PDF
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => startEditInvoice(inv)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit Invoice
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleStatusChange(inv.id!, 'PAID')}>
-                            <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" />
-                            Mark as PAID
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleStatusChange(inv.id!, 'ISSUED')}>
-                            <FileCheck className="h-4 w-4 mr-2 text-indigo-400" />
-                            Mark as ISSUED
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleStatusChange(inv.id!, 'DRAFT')}>
-                            <Clock className="h-4 w-4 mr-2 text-amber-500" />
-                            Mark as DRAFT
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleStatusChange(inv.id!, 'CANCELLED')}>
-                            <Ban className="h-4 w-4 mr-2 text-rose-500" />
-                            Mark as CANCELLED
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleDelete(inv.id!)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                invoices.map((inv) => {
+                  const validTransitions = getValidTransitions(inv.status)
+
+                  return (
+                    <TableRow key={inv.id} className="group">
+                      <TableCell className="font-mono font-semibold">
+                        <button
+                          onClick={() => startEditInvoice(inv)}
+                          className="text-primary hover:underline hover:text-emerald-400 font-mono font-bold transition-colors cursor-pointer text-left inline-flex items-center gap-1 group/btn"
+                          title="Click to view and edit invoice details"
+                        >
+                          {inv.invoice_number}
+                        </button>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-foreground text-sm">
+                          {inv.counterparty?.business_name || 'N/A'}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground font-mono">
+                          Tax ID: {inv.counterparty?.tax_id}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs font-mono text-muted-foreground">
+                        {inv.issue_date}
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-0.5">
+                          {getStatusBadge(inv.status)}
+                          {inv.status === 'PAID' && inv.paid_date && (
+                            <div className="text-[10px] font-mono text-emerald-400">
+                              Paid: {inv.paid_date}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-bold text-foreground">
+                        {inv.currency === 'EUR'
+                          ? '€'
+                          : inv.currency === 'USD'
+                          ? '$'
+                          : inv.currency === 'GBP'
+                          ? '£'
+                          : 'GEL '}
+                        {inv.total_amount.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => handleDownloadPdf(inv)}>
+                              <Download className="h-4 w-4 mr-2 text-primary" />
+                              Download PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => startEditInvoice(inv)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit Invoice
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+
+                            {/* State Machine Transition Items */}
+                            {validTransitions.map((t) => (
+                              <DropdownMenuItem
+                                key={t.targetStatus}
+                                onClick={() => handleStateTransition(inv, t)}
+                              >
+                                {t.targetStatus === 'PAID' && (
+                                  <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" />
+                                )}
+                                {t.targetStatus === 'DRAFT' && (
+                                  <RotateCcw className="h-4 w-4 mr-2 text-slate-400" />
+                                )}
+                                {t.label}
+                              </DropdownMenuItem>
+                            ))}
+
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(inv.id!)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Record Payment Modal */}
+      <RecordPaymentModal
+        isOpen={paymentModalState.isOpen}
+        invoiceNumber={paymentModalState.invoice?.invoice_number}
+        totalAmount={paymentModalState.invoice?.total_amount}
+        currency={paymentModalState.invoice?.currency}
+        onClose={() => setPaymentModalState({ isOpen: false })}
+        onConfirm={handleConfirmPaidDate}
+      />
     </div>
   )
 }

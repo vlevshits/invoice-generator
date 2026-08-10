@@ -469,6 +469,122 @@ async fn get_or_create_drive_folder(
     Ok(folder_id.to_string())
 }
 
+async fn upsert_drive_file(
+    access_token: &str,
+    folder_id: &str,
+    file_name: &str,
+    upload_mime: &str,
+    target_mime: &str,
+    file_bytes: &[u8],
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+
+    let q = format!(
+        "'{}' in parents and name = '{}' and trashed = false",
+        folder_id,
+        file_name.replace("'", "\\'")
+    );
+
+    let search_res = client
+        .get("https://www.googleapis.com/drive/v3/files")
+        .bearer_auth(access_token)
+        .query(&[("q", q.as_str()), ("fields", "files(id, name)")])
+        .send()
+        .await
+        .map_err(|e| format!("File search request failed: {}", e))?;
+
+    let mut existing_id: Option<String> = None;
+
+    if search_res.status().is_success() {
+        if let Ok(json) = search_res.json::<serde_json::Value>().await {
+            if let Some(files) = json.get("files").and_then(|f| f.as_array()) {
+                if let Some(first) = files.first() {
+                    if let Some(id) = first.get("id").and_then(|i| i.as_str()) {
+                        existing_id = Some(id.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let boundary = "foo_bar_baz_upsert_boundary";
+    let mut body = Vec::new();
+
+    if let Some(ref file_id) = existing_id {
+        let metadata = serde_json::json!({
+            "name": file_name,
+            "mimeType": target_mime
+        });
+
+        body.extend(format!("--{}\r\n", boundary).as_bytes());
+        body.extend(b"Content-Type: application/json; charset=UTF-8\r\n\r\n");
+        body.extend(metadata.to_string().as_bytes());
+        body.extend(b"\r\n");
+
+        body.extend(format!("--{}\r\n", boundary).as_bytes());
+        body.extend(format!("Content-Type: {}\r\n\r\n", upload_mime).as_bytes());
+        body.extend(file_bytes);
+        body.extend(b"\r\n");
+        body.extend(format!("--{}\r\n", boundary).as_bytes());
+
+        let patch_url = format!(
+            "https://www.googleapis.com/upload/drive/v3/files/{}?uploadType=multipart",
+            file_id
+        );
+
+        let res = client
+            .patch(&patch_url)
+            .bearer_auth(access_token)
+            .header("Content-Type", format!("multipart/related; boundary={}", boundary))
+            .body(body)
+            .send()
+            .await
+            .map_err(|e| format!("Drive API update failed: {}", e))?;
+
+        if !res.status().is_success() {
+            let err = res.text().await.unwrap_or_default();
+            return Err(format!("Drive API file update error: {}", err));
+        }
+
+        let body_text = res.text().await.unwrap_or_default();
+        Ok(body_text)
+    } else {
+        let metadata = serde_json::json!({
+            "name": file_name,
+            "mimeType": target_mime,
+            "parents": [folder_id]
+        });
+
+        body.extend(format!("--{}\r\n", boundary).as_bytes());
+        body.extend(b"Content-Type: application/json; charset=UTF-8\r\n\r\n");
+        body.extend(metadata.to_string().as_bytes());
+        body.extend(b"\r\n");
+
+        body.extend(format!("--{}\r\n", boundary).as_bytes());
+        body.extend(format!("Content-Type: {}\r\n\r\n", upload_mime).as_bytes());
+        body.extend(file_bytes);
+        body.extend(b"\r\n");
+        body.extend(format!("--{}\r\n", boundary).as_bytes());
+
+        let res = client
+            .post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
+            .bearer_auth(access_token)
+            .header("Content-Type", format!("multipart/related; boundary={}", boundary))
+            .body(body)
+            .send()
+            .await
+            .map_err(|e| format!("Drive API creation failed: {}", e))?;
+
+        if !res.status().is_success() {
+            let err = res.text().await.unwrap_or_default();
+            return Err(format!("Drive API file creation error: {}", err));
+        }
+
+        let body_text = res.text().await.unwrap_or_default();
+        Ok(body_text)
+    }
+}
+
 #[tauri::command]
 async fn export_csv_to_google_sheet(
     access_token: String,
@@ -476,44 +592,15 @@ async fn export_csv_to_google_sheet(
     sheet_name: String,
     csv_content: String,
 ) -> Result<String, String> {
-    let client = reqwest::Client::new();
-
-    let metadata = serde_json::json!({
-        "name": sheet_name,
-        "mimeType": "application/vnd.google-apps.spreadsheet",
-        "parents": [folder_id]
-    });
-
-    let boundary = "foo_bar_baz_sheet_boundary";
-    let mut body = Vec::new();
-
-    body.extend(format!("--{}\r\n", boundary).as_bytes());
-    body.extend(b"Content-Type: application/json; charset=UTF-8\r\n\r\n");
-    body.extend(metadata.to_string().as_bytes());
-    body.extend(b"\r\n");
-
-    body.extend(format!("--{}\r\n", boundary).as_bytes());
-    body.extend(b"Content-Type: text/csv; charset=UTF-8\r\n\r\n");
-    body.extend(csv_content.as_bytes());
-    body.extend(b"\r\n");
-    body.extend(format!("--{}\r\n", boundary).as_bytes());
-
-    let res = client
-        .post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
-        .bearer_auth(access_token)
-        .header("Content-Type", format!("multipart/related; boundary={}", boundary))
-        .body(body)
-        .send()
-        .await
-        .map_err(|e| format!("Network request to upload sheet failed: {}", e))?;
-
-    if !res.status().is_success() {
-        let err = res.text().await.unwrap_or_default();
-        return Err(format!("Drive API sheet upload error: {}", err));
-    }
-
-    let body_text = res.text().await.unwrap_or_default();
-    Ok(body_text)
+    upsert_drive_file(
+        &access_token,
+        &folder_id,
+        &sheet_name,
+        "text/csv; charset=UTF-8",
+        "application/vnd.google-apps.spreadsheet",
+        csv_content.as_bytes(),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -525,52 +612,53 @@ async fn upload_pdf_to_google_drive(
 ) -> Result<String, String> {
     let pdf_bytes = fs::read(&file_path).map_err(|e| format!("Failed to read PDF file: {}", e))?;
 
-    let client = reqwest::Client::new();
+    let folder_id = parent_folder_id.unwrap_or_default();
+    if folder_id.trim().is_empty() {
+        let client = reqwest::Client::new();
+        let metadata = serde_json::json!({
+            "name": file_name,
+            "mimeType": "application/pdf"
+        });
 
-    let mut metadata_map = serde_json::json!({
-        "name": file_name,
-        "mimeType": "application/pdf"
-    });
+        let boundary = "foo_bar_baz_boundary";
+        let mut body = Vec::new();
+        body.extend(format!("--{}\r\n", boundary).as_bytes());
+        body.extend(b"Content-Type: application/json; charset=UTF-8\r\n\r\n");
+        body.extend(metadata.to_string().as_bytes());
+        body.extend(b"\r\n");
+        body.extend(format!("--{}\r\n", boundary).as_bytes());
+        body.extend(b"Content-Type: application/pdf\r\n\r\n");
+        body.extend(&pdf_bytes);
+        body.extend(b"\r\n");
+        body.extend(format!("--{}\r\n", boundary).as_bytes());
 
-    if let Some(folder_id) = parent_folder_id {
-        if !folder_id.trim().is_empty() {
-            metadata_map.as_object_mut().unwrap().insert(
-                "parents".to_string(),
-                serde_json::json!([folder_id])
-            );
+        let res = client
+            .post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
+            .bearer_auth(access_token)
+            .header("Content-Type", format!("multipart/related; boundary={}", boundary))
+            .body(body)
+            .send()
+            .await
+            .map_err(|e| format!("Network request to Google Drive failed: {}", e))?;
+
+        if !res.status().is_success() {
+            let err = res.text().await.unwrap_or_default();
+            return Err(format!("Drive API upload error: {}", err));
         }
-    }
 
-    let boundary = "foo_bar_baz_boundary";
-    let mut body = Vec::new();
-
-    body.extend(format!("--{}\r\n", boundary).as_bytes());
-    body.extend(b"Content-Type: application/json; charset=UTF-8\r\n\r\n");
-    body.extend(metadata_map.to_string().as_bytes());
-    body.extend(b"\r\n");
-
-    body.extend(format!("--{}\r\n", boundary).as_bytes());
-    body.extend(b"Content-Type: application/pdf\r\n\r\n");
-    body.extend(&pdf_bytes);
-    body.extend(b"\r\n");
-    body.extend(format!("--{}\r\n", boundary).as_bytes());
-
-    let res = client
-        .post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
-        .bearer_auth(access_token)
-        .header("Content-Type", format!("multipart/related; boundary={}", boundary))
-        .body(body)
-        .send()
+        let body_text = res.text().await.unwrap_or_default();
+        Ok(body_text)
+    } else {
+        upsert_drive_file(
+            &access_token,
+            &folder_id,
+            &file_name,
+            "application/pdf",
+            "application/pdf",
+            &pdf_bytes,
+        )
         .await
-        .map_err(|e| format!("Network request to Google Drive failed: {}", e))?;
-
-    if !res.status().is_success() {
-        let err = res.text().await.unwrap_or_default();
-        return Err(format!("Drive API upload error: {}", err));
     }
-
-    let body_text = res.text().await.unwrap_or_default();
-    Ok(body_text)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -660,6 +748,21 @@ pub fn run() {
         version: 4,
         description: "add_custom_typst_template_to_profiles",
         sql: "ALTER TABLE profiles ADD COLUMN custom_typst_template TEXT;",
+        kind: MigrationKind::Up,
+    }, Migration {
+        version: 5,
+        description: "add_paid_date_to_invoices",
+        sql: "ALTER TABLE invoices ADD COLUMN paid_date TEXT;",
+        kind: MigrationKind::Up,
+    }, Migration {
+        version: 6,
+        description: "add_email_to_profiles",
+        sql: "ALTER TABLE profiles ADD COLUMN email TEXT;",
+        kind: MigrationKind::Up,
+    }, Migration {
+        version: 7,
+        description: "add_email_to_counterparties",
+        sql: "ALTER TABLE counterparties ADD COLUMN email TEXT;",
         kind: MigrationKind::Up,
     }];
 

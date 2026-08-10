@@ -32,6 +32,7 @@ export function CounterpartyCombobox({
   const [directorName, setDirectorName] = useState('')
   const [legalAddress, setLegalAddress] = useState('')
   const [actualAddress, setActualAddress] = useState('')
+  const [email, setEmail] = useState('')
 
   const selectedItem = counterparties.find((c) => c.id === selectedId)
 
@@ -44,6 +45,7 @@ export function CounterpartyCombobox({
       director_name: directorName || undefined,
       legal_address: legalAddress,
       actual_address: actualAddress || undefined,
+      email: email || undefined,
     })
 
     onRefresh()
@@ -55,6 +57,7 @@ export function CounterpartyCombobox({
       director_name: directorName || undefined,
       legal_address: legalAddress,
       actual_address: actualAddress || undefined,
+      email: email || undefined,
     }
     onSelect(newCounterparty)
 
@@ -64,6 +67,7 @@ export function CounterpartyCombobox({
     setDirectorName('')
     setLegalAddress('')
     setActualAddress('')
+    setEmail('')
     setIsOpenModal(false)
   }
 
@@ -164,6 +168,15 @@ export function CounterpartyCombobox({
                 placeholder="e.g. 456 Commercial Way, London, EC1A 1BB, UK"
                 value={legalAddress}
                 onChange={(e) => setLegalAddress(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Email Address (Optional)</label>
+              <Input
+                type="email"
+                placeholder="e.g. billing@client.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div>

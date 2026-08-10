@@ -11,6 +11,7 @@ import type {
   Currency,
   InvoiceStatus,
 } from '@/types'
+import { autoSyncGoogleDriveIfConnected } from '@/lib/driveSync'
 
 let rawDbInstance: Database | null = null
 let drizzleDbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null
@@ -18,12 +19,6 @@ let drizzleDbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null
 export async function getRawDb(): Promise<Database> {
   if (!rawDbInstance) {
     rawDbInstance = await Database.load('sqlite:invoices.db')
-    try {
-      await rawDbInstance.execute('ALTER TABLE profiles ADD COLUMN default_payment_terms TEXT')
-    } catch (_) {}
-    try {
-      await rawDbInstance.execute('ALTER TABLE profiles ADD COLUMN custom_typst_template TEXT')
-    } catch (_) {}
   }
   return rawDbInstance
 }
@@ -69,6 +64,7 @@ export async function getProfile(): Promise<Profile | null> {
     business_name: p.businessName,
     tax_id: p.taxId,
     legal_address: p.legalAddress,
+    email: p.email || undefined,
     default_currency: p.defaultCurrency as Currency,
     default_payment_terms: p.defaultPaymentTerms || undefined,
     custom_typst_template: p.customTypstTemplate || undefined,
@@ -87,6 +83,7 @@ export async function saveProfile(profile: Partial<Profile>): Promise<void> {
         businessName: profile.business_name || '',
         taxId: profile.tax_id || '',
         legalAddress: profile.legal_address || '',
+        email: profile.email || null,
         defaultCurrency: profile.default_currency || 'GEL',
         defaultPaymentTerms: profile.default_payment_terms || null,
         customTypstTemplate: profile.custom_typst_template || null,
@@ -97,6 +94,7 @@ export async function saveProfile(profile: Partial<Profile>): Promise<void> {
       businessName: profile.business_name || '',
       taxId: profile.tax_id || '',
       legalAddress: profile.legal_address || '',
+      email: profile.email || null,
       defaultCurrency: profile.default_currency || 'GEL',
       defaultPaymentTerms: profile.default_payment_terms || null,
       customTypstTemplate: profile.custom_typst_template || null,
@@ -204,6 +202,7 @@ export async function getCounterparties(): Promise<Counterparty[]> {
     director_name: c.directorName || undefined,
     legal_address: c.legalAddress,
     actual_address: c.actualAddress || undefined,
+    email: c.email || undefined,
     created_at: c.createdAt || undefined,
   }))
 }
@@ -220,6 +219,7 @@ export async function saveCounterparty(counterparty: Partial<Counterparty>): Pro
         directorName: counterparty.director_name || null,
         legalAddress: counterparty.legal_address || '',
         actualAddress: counterparty.actual_address || null,
+        email: counterparty.email || null,
       })
       .where(eq(schema.counterparties.id, counterparty.id))
     return counterparty.id
@@ -230,6 +230,7 @@ export async function saveCounterparty(counterparty: Partial<Counterparty>): Pro
       directorName: counterparty.director_name || null,
       legalAddress: counterparty.legal_address || '',
       actualAddress: counterparty.actual_address || null,
+      email: counterparty.email || null,
     })
     const latest = await db
       .select({ id: schema.counterparties.id })
@@ -318,6 +319,7 @@ export async function getInvoices(filters?: {
     invoice_number: inv.invoiceNumber,
     issue_date: inv.issueDate,
     due_date: inv.dueDate || undefined,
+    paid_date: inv.paidDate || undefined,
     counterparty_id: inv.counterpartyId,
     bank_account_id: inv.bankAccountId,
     currency: inv.currency as Currency,
@@ -334,6 +336,7 @@ export async function getInvoices(filters?: {
           director_name: inv.counterparty.directorName || undefined,
           legal_address: inv.counterparty.legalAddress,
           actual_address: inv.counterparty.actualAddress || undefined,
+          email: inv.counterparty.email || undefined,
         }
       : undefined,
     bank_account: inv.bankAccount
@@ -375,6 +378,7 @@ export async function saveInvoice(invoice: Partial<Invoice>, items: any[]): Prom
         invoiceNumber: invoice.invoice_number || '',
         issueDate: invoice.issue_date || '',
         dueDate: invoice.due_date || null,
+        paidDate: invoice.paid_date || null,
         counterpartyId: invoice.counterparty_id!,
         bankAccountId: invoice.bank_account_id!,
         currency: invoice.currency || 'GEL',
@@ -391,6 +395,7 @@ export async function saveInvoice(invoice: Partial<Invoice>, items: any[]): Prom
       invoiceNumber: invoice.invoice_number || '',
       issueDate: invoice.issue_date || '',
       dueDate: invoice.due_date || null,
+      paidDate: invoice.paid_date || null,
       counterpartyId: invoice.counterparty_id!,
       bankAccountId: invoice.bank_account_id!,
       currency: invoice.currency || 'GEL',
@@ -420,6 +425,9 @@ export async function saveInvoice(invoice: Partial<Invoice>, items: any[]): Prom
     })
   }
 
+  // Trigger background Drive sync if connected
+  autoSyncGoogleDriveIfConnected()
+
   return invoiceId!
 }
 
@@ -427,9 +435,19 @@ export async function deleteInvoice(id: number): Promise<void> {
   const db = await getDb()
   await db.delete(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, id))
   await db.delete(schema.invoices).where(eq(schema.invoices.id, id))
+  autoSyncGoogleDriveIfConnected()
 }
 
-export async function updateInvoiceStatus(id: number, status: string): Promise<void> {
+export async function updateInvoiceStatus(
+  id: number,
+  status: InvoiceStatus,
+  paidDate?: string
+): Promise<void> {
   const db = await getDb()
-  await db.update(schema.invoices).set({ status }).where(eq(schema.invoices.id, id))
+  const finalPaidDate = status === 'PAID' ? paidDate || new Date().toISOString().split('T')[0] : null
+  await db
+    .update(schema.invoices)
+    .set({ status, paidDate: finalPaidDate })
+    .where(eq(schema.invoices.id, id))
+  autoSyncGoogleDriveIfConnected()
 }

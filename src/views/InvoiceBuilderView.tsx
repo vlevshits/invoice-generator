@@ -1,37 +1,53 @@
 import { useState, useEffect } from 'react'
 import type {
-  Profile,
-  BankAccount,
+  InvoiceWithDetails,
   Counterparty,
+  BankAccount,
   InvoiceItem,
   Currency,
   InvoiceStatus,
+  Profile,
 } from '@/types'
 import {
   getProfile,
   getBankAccounts,
   getCounterparties,
-  getNextInvoiceNumber,
   saveInvoice,
+  getNextInvoiceNumber,
+  updateInvoiceStatus,
 } from '@/lib/db'
+import { getValidTransitions, type StateTransition } from '@/lib/invoiceStateMachine'
 import { numberToWords } from '@/lib/numberToWords'
 import { useAppStore } from '@/store/useAppStore'
-import { invoke } from '@tauri-apps/api/core'
-import { save as saveFileDialog } from '@tauri-apps/plugin-dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { DriveSyncBadge } from '@/components/domain/DriveSyncBadge'
 import { CounterpartyCombobox } from '@/components/domain/CounterpartyCombobox'
 import { BankAccountSelector } from '@/components/domain/BankAccountSelector'
 import { LineItemsEditor } from '@/components/domain/LineItemsEditor'
 import { AmountInWordsBadge } from '@/components/domain/AmountInWordsBadge'
-import { LiveInvoicePreview } from '@/components/domain/LiveInvoicePreview'
-import { DriveSyncBadge } from '@/components/domain/DriveSyncBadge'
-import { ArrowLeft, Save, Download, FileText } from 'lucide-react'
+import { RecordPaymentModal } from '@/components/domain/RecordPaymentModal'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import {
+  ArrowLeft,
+  Save,
+  Download,
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  Ban,
+  RotateCcw,
+  RefreshCw,
+  FileCheck,
+  Mail,
+} from 'lucide-react'
+import { invoke } from '@tauri-apps/api/core'
 
 export function InvoiceBuilderView() {
   const { setCurrentView, editingInvoice } = useAppStore()
 
+  // App Profile & Selection Options
   const [profile, setProfile] = useState<Profile | null>(null)
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [counterparties, setCounterparties] = useState<Counterparty[]>([])
@@ -40,25 +56,30 @@ export function InvoiceBuilderView() {
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate] = useState('')
+  const [paidDate, setPaidDate] = useState<string | undefined>(editingInvoice?.paid_date)
+  const [currency, setCurrency] = useState<Currency>('GEL')
+  const [status, setStatus] = useState<InvoiceStatus>('DRAFT')
   const [selectedCounterparty, setSelectedCounterparty] = useState<Counterparty | null>(null)
   const [selectedBankAccount, setSelectedBankAccount] = useState<BankAccount | null>(null)
-  const [currency, setCurrency] = useState<Currency>('GEL')
-  const [status, setStatus] = useState<InvoiceStatus>('ISSUED')
   const [notes, setNotes] = useState('')
-
   const [items, setItems] = useState<InvoiceItem[]>([
     {
       item_order: 1,
       description: 'Consulting Services',
       unit: 'Services',
-      unit_price: 1400,
+      unit_price: 1000,
       quantity: 1,
-      amount: 1400,
+      amount: 1000,
     },
   ])
 
+  // PDF & Saving state
   const [generatedPdfPath, setGeneratedPdfPath] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Payment Date Modal
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
+  const [pendingTargetStatus, setPendingTargetStatus] = useState<InvoiceStatus | null>(null)
 
   const loadInitialData = async () => {
     const [p, bList, cList] = await Promise.all([
@@ -83,6 +104,7 @@ export function InvoiceBuilderView() {
       setInvoiceNumber(editingInvoice.invoice_number)
       setIssueDate(editingInvoice.issue_date)
       setDueDate(editingInvoice.due_date || '')
+      setPaidDate(editingInvoice.paid_date)
       setCurrency(editingInvoice.currency)
       setStatus(editingInvoice.status)
       setNotes(editingInvoice.notes || '')
@@ -116,7 +138,6 @@ export function InvoiceBuilderView() {
     loadInitialData()
   }, [])
 
-  // Recalculate invoice number if issue date changes on new invoice
   const handleIssueDateChange = async (newDate: string) => {
     setIssueDate(newDate)
     if (!editingInvoice) {
@@ -125,10 +146,10 @@ export function InvoiceBuilderView() {
     }
   }
 
-  const totalAmount = items.reduce((sum, item) => sum + item.amount, 0)
+  const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0)
   const amountInWords = numberToWords(totalAmount, currency)
 
-  const handleSaveInvoice = async (): Promise<number | null> => {
+  const handleSaveInvoice = async (forcedStatus?: InvoiceStatus, forcedPaidDate?: string): Promise<number | null> => {
     if (!selectedCounterparty) {
       alert('Please select a counterparty (buyer).')
       return null
@@ -138,6 +159,9 @@ export function InvoiceBuilderView() {
       return null
     }
 
+    const finalStatus = forcedStatus || status
+    const finalPaidDate = forcedStatus === 'PAID' ? (forcedPaidDate || new Date().toISOString().split('T')[0]) : (forcedStatus ? undefined : paidDate)
+
     try {
       setIsSaving(true)
       const savedId = await saveInvoice(
@@ -146,16 +170,19 @@ export function InvoiceBuilderView() {
           invoice_number: invoiceNumber,
           issue_date: issueDate,
           due_date: dueDate || undefined,
+          paid_date: finalPaidDate,
           counterparty_id: selectedCounterparty.id,
           bank_account_id: selectedBankAccount.id,
           currency,
           total_amount: totalAmount,
           amount_in_words: amountInWords,
           notes: notes || undefined,
-          status,
+          status: finalStatus,
         },
         items
       )
+      setStatus(finalStatus)
+      if (finalPaidDate !== undefined) setPaidDate(finalPaidDate)
       return savedId
     } catch (err: any) {
       alert('Failed to save invoice: ' + String(err))
@@ -165,15 +192,48 @@ export function InvoiceBuilderView() {
     }
   }
 
+  const handleStateTransition = async (transition: StateTransition) => {
+    if (transition.requiresPaidDateModal) {
+      setPendingTargetStatus(transition.targetStatus)
+      setIsPaymentModalOpen(true)
+      return
+    }
+
+    if (editingInvoice?.id) {
+      await updateInvoiceStatus(editingInvoice.id, transition.targetStatus)
+      setStatus(transition.targetStatus)
+    } else {
+      await handleSaveInvoice(transition.targetStatus)
+    }
+  }
+
+  const handleConfirmPaidDateModal = async (selectedPaidDate: string) => {
+    const target = pendingTargetStatus || 'PAID'
+    if (editingInvoice?.id) {
+      await updateInvoiceStatus(editingInvoice.id, target, selectedPaidDate)
+      setStatus(target)
+      setPaidDate(selectedPaidDate)
+    } else {
+      await handleSaveInvoice(target, selectedPaidDate)
+    }
+    setPendingTargetStatus(null)
+  }
+
   const handleExportPdf = async () => {
+    if (!selectedCounterparty || !selectedBankAccount) {
+      alert('Please complete Buyer and Bank selection before exporting PDF.')
+      return
+    }
+
     const savedId = await handleSaveInvoice()
     if (!savedId) return
 
     try {
-      const defaultName = `Invoice_${invoiceNumber}.pdf`
-      const targetPath = await saveFileDialog({
-        defaultPath: defaultName,
-        filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
+      const targetPath: string | null = await invoke('plugin:dialog|save', {
+        options: {
+          defaultPath: `Invoice_${invoiceNumber}.pdf`,
+          filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
+        },
       })
 
       if (!targetPath) return
@@ -185,18 +245,18 @@ export function InvoiceBuilderView() {
         seller_name: profile?.business_name || 'Your Business Name',
         seller_tax_id: profile?.tax_id || '123456789',
         seller_address: profile?.legal_address || '123 Main Street, Suite 100, City, Country',
-        buyer_name: selectedCounterparty!.business_name,
-        buyer_tax_id: selectedCounterparty!.tax_id,
-        buyer_director: selectedCounterparty!.director_name,
-        buyer_address: selectedCounterparty!.legal_address,
-        bank_account_label: selectedBankAccount!.account_label,
-        bank_beneficiary: selectedBankAccount!.beneficiary_name,
-        bank_name: selectedBankAccount!.bank_name,
-        bank_address: selectedBankAccount!.bank_address,
-        bank_iban: selectedBankAccount!.iban,
-        bank_swift: selectedBankAccount!.swift_bic,
-        intermediary_bank: selectedBankAccount!.intermediary_bank_name,
-        intermediary_swift: selectedBankAccount!.intermediary_swift,
+        buyer_name: selectedCounterparty.business_name,
+        buyer_tax_id: selectedCounterparty.tax_id,
+        buyer_director: selectedCounterparty.director_name,
+        buyer_address: selectedCounterparty.legal_address,
+        bank_account_label: selectedBankAccount.account_label,
+        bank_beneficiary: selectedBankAccount.beneficiary_name,
+        bank_name: selectedBankAccount.bank_name,
+        bank_address: selectedBankAccount.bank_address,
+        bank_iban: selectedBankAccount.iban,
+        bank_swift: selectedBankAccount.swift_bic,
+        intermediary_bank: selectedBankAccount.intermediary_bank_name,
+        intermediary_swift: selectedBankAccount.intermediary_swift,
         currency,
         total_amount: totalAmount,
         amount_in_words: amountInWords,
@@ -223,6 +283,45 @@ export function InvoiceBuilderView() {
     }
   }
 
+  const handleSendEmail = async () => {
+    if (!selectedCounterparty) {
+      alert('Please select a buyer counterparty first.')
+      return
+    }
+
+    let recipientEmail = selectedCounterparty.email
+    if (!recipientEmail) {
+      const inputEmail = prompt(
+        `Enter email address for ${selectedCounterparty.business_name}:`
+      )
+      if (!inputEmail) return
+      recipientEmail = inputEmail
+    }
+
+    const sellerName = profile?.business_name || 'Your Business Name'
+    const subject = encodeURIComponent(`Invoice ${invoiceNumber} from ${sellerName}`)
+    const bodyText = encodeURIComponent(
+      `Dear ${selectedCounterparty.business_name},\n\nPlease find details for Invoice ${invoiceNumber} issued on ${issueDate}.\n\nTotal Amount: ${currency} ${totalAmount.toFixed(2)}\n\nBest regards,\n${sellerName}`
+    )
+
+    const mailtoUrl = `mailto:${recipientEmail}?subject=${subject}&body=${bodyText}`
+
+    try {
+      await invoke('plugin:opener|open_url', { url: mailtoUrl })
+    } catch (_) {
+      window.open(mailtoUrl, '_blank')
+    }
+  }
+
+  const validTransitions = getValidTransitions(status)
+
+  const getStatusBadge = (st: InvoiceStatus) => {
+    if (st === 'PAID') {
+      return <Badge variant="paid">PAID</Badge>
+    }
+    return <Badge variant="draft">DRAFT</Badge>
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Top Navbar */}
@@ -245,14 +344,46 @@ export function InvoiceBuilderView() {
               ({invoiceNumber})
             </span>
           </h2>
+          {getStatusBadge(status)}
+          {status === 'PAID' && paidDate && (
+            <span className="text-[11px] font-mono text-emerald-400/90 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/20">
+              Paid: {paidDate}
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* State Machine Action Controls */}
+          <div className="flex items-center gap-1.5 mr-2">
+            {validTransitions.map((t) => (
+              <Button
+                key={t.targetStatus}
+                variant={t.variant}
+                size="sm"
+                onClick={() => handleStateTransition(t)}
+                className="h-8 text-xs font-semibold"
+              >
+                {t.targetStatus === 'PAID' && <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-400" />}
+                {t.targetStatus === 'DRAFT' && <RotateCcw className="h-3.5 w-3.5 mr-1" />}
+                {t.label}
+              </Button>
+            ))}
+          </div>
+
           <DriveSyncBadge invoiceNumber={invoiceNumber} pdfPath={generatedPdfPath || undefined} />
 
-          <Button variant="outline" onClick={handleSaveInvoice} disabled={isSaving} className="gap-1.5">
+          <Button variant="outline" onClick={() => handleSaveInvoice()} disabled={isSaving} className="gap-1.5">
             <Save className="h-4 w-4 text-slate-400" />
             Save Draft
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleSendEmail}
+            className="gap-1.5 text-xs border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/10 font-semibold"
+          >
+            <Mail className="h-4 w-4 text-indigo-400" />
+            Send via Email
           </Button>
 
           <Button onClick={handleExportPdf} className="gap-1.5 shadow-sm">
@@ -369,59 +500,165 @@ export function InvoiceBuilderView() {
           <Card>
             <CardHeader className="py-3.5">
               <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                4. Notes & Status
+                4. Notes & Payment Status
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 py-2">
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Payment Status
+                  Current Status
                 </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as InvoiceStatus)}
-                  className="w-full h-9 rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono font-semibold"
-                >
-                  <option value="ISSUED">ISSUED</option>
-                  <option value="PAID">PAID</option>
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="CANCELLED">CANCELLED</option>
-                </select>
+                <div className="flex items-center gap-3">
+                  {getStatusBadge(status)}
+                  <span className="text-xs text-muted-foreground italic">
+                    (Use top header action buttons to transition status)
+                  </span>
+                </div>
               </div>
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Notes / Terms (Optional)
+                  Payment Terms / Additional Notes
                 </label>
                 <textarea
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="e.g. Payment due within 14 days of invoice receipt."
-                  className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder="Enter payment instructions, terms or bank details note..."
+                  className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground resize-y"
                 />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Right Panel: Live Visual Template Preview */}
-        <div className="col-span-12 lg:col-span-6 p-6 bg-slate-950/40 overflow-y-auto">
-          <LiveInvoicePreview
-            invoiceNumber={invoiceNumber}
-            issueDate={issueDate}
-            dueDate={dueDate}
-            seller={profile}
-            bankAccount={selectedBankAccount}
-            buyer={selectedCounterparty}
-            currency={currency}
-            items={items}
-            totalAmount={totalAmount}
-            amountInWords={amountInWords}
-            notes={notes}
-          />
+        {/* Right Panel: Live PDF Preview */}
+        <div className="col-span-12 lg:col-span-6 bg-muted/20 p-6 overflow-y-auto flex flex-col justify-between">
+          <div className="bg-card border border-border rounded-lg shadow-lg p-8 space-y-6 text-foreground font-sans text-xs">
+            {/* Header Preview */}
+            <div className="flex justify-between items-start border-b border-border pb-4">
+              <div>
+                <h3 className="font-bold text-lg font-display text-foreground">
+                  {profile?.business_name || 'Your Business Name'}
+                </h3>
+                <p className="text-muted-foreground text-xs">
+                  Tax ID: {profile?.tax_id || '123456789'}
+                </p>
+                <p className="text-muted-foreground text-xs max-w-xs">
+                  {profile?.legal_address || '123 Main Street, Suite 100, City, Country'}
+                </p>
+              </div>
+
+              <div className="text-right">
+                <h1 className="text-2xl font-bold text-emerald-500 font-display">INVOICE</h1>
+                <p className="font-mono font-semibold text-xs text-foreground">
+                  {invoiceNumber || 'INV-202608-01'}
+                </p>
+                <p className="text-muted-foreground text-xs">Date: {issueDate}</p>
+                {dueDate && <p className="text-muted-foreground text-xs">Due: {dueDate}</p>}
+                {paidDate && <p className="text-emerald-400 font-semibold text-xs">Paid: {paidDate}</p>}
+              </div>
+            </div>
+
+            {/* Buyer & Bank Info */}
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="space-y-1">
+                <span className="font-bold text-muted-foreground uppercase text-[10px]">
+                  Invoice To:
+                </span>
+                <p className="font-bold text-foreground">
+                  {selectedCounterparty?.business_name || 'Select Counterparty'}
+                </p>
+                <p className="text-muted-foreground font-mono">
+                  Tax ID: {selectedCounterparty?.tax_id || '---'}
+                </p>
+                {selectedCounterparty?.director_name && (
+                  <p className="text-muted-foreground">
+                    Director: {selectedCounterparty.director_name}
+                  </p>
+                )}
+                <p className="text-muted-foreground">{selectedCounterparty?.legal_address}</p>
+              </div>
+
+              <div className="space-y-1">
+                <span className="font-bold text-muted-foreground uppercase text-[10px]">
+                  Payment Details:
+                </span>
+                <p className="font-bold text-foreground">
+                  {selectedBankAccount?.bank_name || 'Select Seller Bank'}
+                </p>
+                <p className="text-muted-foreground">
+                  Beneficiary: {selectedBankAccount?.beneficiary_name}
+                </p>
+                <p className="font-mono text-muted-foreground text-[11px]">
+                  IBAN: {selectedBankAccount?.iban}
+                </p>
+                <p className="font-mono text-muted-foreground text-[11px]">
+                  SWIFT: {selectedBankAccount?.swift_bic}
+                </p>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="border border-border rounded-md overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted text-muted-foreground font-semibold border-b border-border">
+                  <tr>
+                    <th className="p-2">Description</th>
+                    <th className="p-2 text-center">Qty (Unit)</th>
+                    <th className="p-2 text-right">Unit Price</th>
+                    <th className="p-2 text-right">Net Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {items.map((it, idx) => (
+                    <tr key={idx}>
+                      <td className="p-2 font-medium">{it.description || '---'}</td>
+                      <td className="p-2 text-center font-mono">
+                        {it.quantity} ({it.unit})
+                      </td>
+                      <td className="p-2 text-right font-mono">{it.unit_price.toFixed(2)}</td>
+                      <td className="p-2 text-right font-mono font-semibold">
+                        {it.amount.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Total Summary */}
+            <div className="flex justify-end pt-2">
+              <div className="w-48 space-y-1 text-right">
+                <div className="flex justify-between font-bold text-sm border-t border-border pt-2 text-foreground">
+                  <span>Grand Total:</span>
+                  <span className="text-emerald-500 font-mono">
+                    {currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency === 'GBP' ? '£' : 'GEL '}
+                    {totalAmount.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground text-center pt-4">
+            Live preview rendered with dynamic Typst engine formatting.
+          </p>
         </div>
       </div>
+
+      {/* Record Payment Modal */}
+      <RecordPaymentModal
+        isOpen={isPaymentModalOpen}
+        invoiceNumber={invoiceNumber}
+        totalAmount={totalAmount}
+        currency={currency}
+        onClose={() => {
+          setIsPaymentModalOpen(false)
+          setPendingTargetStatus(null)
+        }}
+        onConfirm={handleConfirmPaidDateModal}
+      />
     </div>
   )
 }

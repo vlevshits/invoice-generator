@@ -1,12 +1,13 @@
 export type Currency = 'GEL' | 'EUR' | 'USD' | 'GBP'
 
-export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED'
+export type InvoiceStatus = 'DRAFT' | 'PAID'
 
 export interface Profile {
   id: number
   business_name: string
   tax_id: string
   legal_address: string
+  email?: string
   default_currency: Currency
   default_payment_terms?: string
   custom_typst_template?: string
@@ -34,6 +35,7 @@ export interface Counterparty {
   director_name?: string
   legal_address: string
   actual_address?: string
+  email?: string
   created_at?: string
 }
 
@@ -53,6 +55,7 @@ export interface Invoice {
   invoice_number: string
   issue_date: string
   due_date?: string
+  paid_date?: string
   counterparty_id: number
   bank_account_id: number
   currency: Currency

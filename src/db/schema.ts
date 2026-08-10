@@ -6,6 +6,7 @@ export const profiles = sqliteTable('profiles', {
   businessName: text('business_name').notNull(),
   taxId: text('tax_id').notNull(),
   legalAddress: text('legal_address').notNull(),
+  email: text('email'),
   defaultCurrency: text('default_currency').notNull().default('GEL'),
   defaultPaymentTerms: text('default_payment_terms'),
   customTypstTemplate: text('custom_typst_template'),
@@ -33,6 +34,7 @@ export const counterparties = sqliteTable('counterparties', {
   directorName: text('director_name'),
   legalAddress: text('legal_address').notNull(),
   actualAddress: text('actual_address'),
+  email: text('email'),
   createdAt: text('created_at'),
 })
 
@@ -41,6 +43,7 @@ export const invoices = sqliteTable('invoices', {
   invoiceNumber: text('invoice_number').notNull().unique(),
   issueDate: text('issue_date').notNull(),
   dueDate: text('due_date'),
+  paidDate: text('paid_date'),
   counterpartyId: integer('counterparty_id').notNull(),
   bankAccountId: integer('bank_account_id').notNull(),
   currency: text('currency').notNull(),

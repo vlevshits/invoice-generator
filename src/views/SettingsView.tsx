@@ -168,6 +168,7 @@ export function SettingsView() {
   const [businessName, setBusinessName] = useState('')
   const [taxId, setTaxId] = useState('')
   const [legalAddress, setLegalAddress] = useState('')
+  const [email, setEmail] = useState('')
   const [defaultCurrency, setDefaultCurrency] = useState<Currency>('GEL')
   const [defaultPaymentTerms, setDefaultPaymentTerms] = useState('')
   const [customTypstTemplate, setCustomTypstTemplate] = useState('')
@@ -200,6 +201,7 @@ export function SettingsView() {
       setBusinessName(p.business_name || '')
       setTaxId(p.tax_id || '')
       setLegalAddress(p.legal_address || '')
+      setEmail(p.email || '')
       setDefaultCurrency(p.default_currency || 'GEL')
       setDefaultPaymentTerms(p.default_payment_terms || '')
       setCustomTypstTemplate(p.custom_typst_template || DEFAULT_TYPST_TEMPLATE)
@@ -219,6 +221,7 @@ export function SettingsView() {
         business_name: businessName,
         tax_id: taxId,
         legal_address: legalAddress,
+        email: email || undefined,
         default_currency: defaultCurrency,
         default_payment_terms: defaultPaymentTerms,
         custom_typst_template: customTypstTemplate,
@@ -436,6 +439,18 @@ export function SettingsView() {
 
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1">
+              Business Contact Email (Optional)
+            </label>
+            <Input
+              type="email"
+              placeholder="e.g. invoices@yourbusiness.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">
               App-Level Default Currency
             </label>
             <select
@@ -622,13 +637,13 @@ export function SettingsView() {
           <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border border-border">
             <div className="flex items-center gap-3">
               {googleAccessToken ? (
-                <Badge variant="paid" className="gap-1 px-3 py-1 text-xs">
-                  <CheckCircle className="h-4 w-4" />
-                  Google Drive Connected
+                <Badge variant="paid" className="gap-1.5 px-2.5 py-0.5 text-xs font-semibold shrink-0">
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Connected
                 </Badge>
               ) : (
-                <Badge variant="outline" className="gap-1 px-3 py-1 text-xs text-muted-foreground">
-                  <AlertCircle className="h-4 w-4" />
+                <Badge variant="outline" className="gap-1.5 px-2.5 py-0.5 text-xs text-muted-foreground shrink-0">
+                  <AlertCircle className="h-3.5 w-3.5" />
                   Not Connected
                 </Badge>
               )}
@@ -673,9 +688,9 @@ export function SettingsView() {
 
           {/* Target Folder & Sync Engine Controls */}
           {googleAccessToken && (
-            <div className="p-4 rounded-lg bg-card border border-border/80 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-                <div className="space-y-1.5 flex-1 max-w-md">
+            <div className="p-4 rounded-lg bg-card border border-border/80 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                <div className="md:col-span-7 space-y-1.5">
                   <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                     <FolderSync className="h-3.5 w-3.5 text-primary" />
                     Target Google Drive Folder Name
@@ -684,26 +699,29 @@ export function SettingsView() {
                     value={googleDriveFolderName}
                     onChange={(e) => setGoogleDriveFolderName(e.target.value)}
                     placeholder="Invoice Generator"
-                    className="font-mono text-xs font-medium"
+                    className="font-mono text-xs font-medium h-9"
                   />
-                  <p className="text-[11px] text-muted-foreground">
-                    PDFs and the Google Sheet invoice summary will be synced inside this folder.
-                  </p>
                 </div>
 
-                <Button
-                  onClick={handleFullDriveSync}
-                  disabled={isSyncingDrive}
-                  className="gap-2 font-semibold shadow-xs bg-emerald-600 hover:bg-emerald-500 text-white shrink-0"
-                >
-                  {isSyncingDrive ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  {isSyncingDrive ? 'Syncing...' : 'Sync Ledger & PDFs to Google Drive'}
-                </Button>
+                <div className="md:col-span-5">
+                  <Button
+                    onClick={handleFullDriveSync}
+                    disabled={isSyncingDrive}
+                    className="w-full h-9 gap-2 font-semibold shadow-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+                  >
+                    {isSyncingDrive ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    {isSyncingDrive ? 'Syncing...' : 'Sync Ledger & PDFs to Google Drive'}
+                  </Button>
+                </div>
               </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                PDFs and the Google Sheet invoice summary will be synced inside this folder.
+              </p>
 
               {isSyncingDrive && (
                 <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-md text-emerald-300 text-xs font-mono flex items-center gap-2.5 animate-pulse">
