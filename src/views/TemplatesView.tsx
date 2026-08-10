@@ -8,8 +8,8 @@ import {
   deleteCustomTemplate,
   type InvoiceTemplate,
 } from '@/lib/templates'
-import { getProfile, saveProfile } from '@/lib/db'
-import type { Profile } from '@/types'
+import { getProfile, saveProfile, getBankAccounts, getCounterparties } from '@/lib/db'
+import type { Profile, BankAccount, Counterparty } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +30,8 @@ import {
 
 export function TemplatesView() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
+  const [counterparties, setCounterparties] = useState<Counterparty[]>([])
   const [customTemplates, setCustomTemplates] = useState<InvoiceTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<InvoiceTemplate>(INVOICE_TEMPLATES[0])
   
@@ -45,8 +47,14 @@ export function TemplatesView() {
   const [deleteTarget, setDeleteTarget] = useState<InvoiceTemplate | null>(null)
 
   const reloadData = async () => {
-    const p = await getProfile()
+    const [p, bList, cList] = await Promise.all([
+      getProfile(),
+      getBankAccounts(),
+      getCounterparties(),
+    ])
     setProfile(p)
+    setBankAccounts(bList)
+    setCounterparties(cList)
     const customList = getCustomTemplates()
     setCustomTemplates(customList)
 
@@ -81,47 +89,54 @@ export function TemplatesView() {
   }, [])
 
   // Sample data payload matching Rust GeneratePdfPayload struct
-  const generateSamplePayload = () => ({
-    seller_name: profile?.business_name || 'Teknos Solutions LLC',
-    seller_tax_id: profile?.tax_id || '987654321',
-    seller_address: profile?.legal_address || '42 Innovation Parkway, Tbilisi, Georgia',
-    invoice_number: 'INV-2026-0042',
-    issue_date: new Date().toISOString().split('T')[0],
-    due_date: '2026-08-25',
-    buyer_name: 'Acme Enterprise Corp',
-    buyer_tax_id: '123456789',
-    buyer_director: 'Johnathan Doe (Director)',
-    buyer_address: '100 Technology Plaza, San Francisco, CA',
-    bank_account_label: 'Main Corporate Account',
-    bank_beneficiary: profile?.business_name || 'Teknos Solutions LLC',
-    bank_name: 'Bank of Georgia',
-    bank_address: 'Tbilisi, Georgia',
-    bank_iban: 'GE29BG0000000123456789',
-    bank_swift: 'BAGAGE22',
-    intermediary_bank: 'Citibank N.A.',
-    intermediary_swift: 'CITIUS33',
-    currency: 'USD',
-    total_amount: 4250.0,
-    amount_in_words: 'Four Thousand Two Hundred Fifty US Dollars',
-    notes: 'Payment is due within 15 days of invoice date. Thank you for your business!',
-    custom_typst_template: editingMarkup,
-    items: [
-      {
-        description: 'Software Engineering & Architecture Services (Sprint 12)',
-        unit: 'hrs',
-        unit_price: 125.0,
-        quantity: 30.0,
-        amount: 3750.0,
-      },
-      {
-        description: 'Cloud Infrastructure & Automated CI/CD Pipeline Setup',
-        unit: 'fixed',
-        unit_price: 500.0,
-        quantity: 1.0,
-        amount: 500.0,
-      },
-    ],
-  })
+  const generateSamplePayload = () => {
+    const primaryBank = bankAccounts[0]
+    const primaryCounterparty = counterparties[0]
+
+    return {
+      seller_name: profile?.business_name || 'Teknos Solutions LLC',
+      seller_tax_id: profile?.tax_id || '987654321',
+      seller_address: profile?.legal_address || '42 Innovation Parkway, Tbilisi, Georgia',
+      invoice_number: 'INV-2026.07.01-01',
+      issue_date: new Date().toISOString().split('T')[0],
+      due_date: '2026-08-25',
+      buyer_name: primaryCounterparty?.business_name || 'Acme Enterprise Corp',
+      buyer_tax_id: primaryCounterparty?.tax_id || '123456789',
+      buyer_director: primaryCounterparty?.director_name
+        ? primaryCounterparty.director_name
+        : 'Johnathan Doe (Director)',
+      buyer_address: primaryCounterparty?.legal_address || '100 Technology Plaza, San Francisco, CA',
+      bank_account_label: primaryBank?.account_label || 'Main Corporate Account',
+      bank_beneficiary: primaryBank?.beneficiary_name || profile?.business_name || 'Teknos Solutions LLC',
+      bank_name: primaryBank?.bank_name || 'Bank of Georgia',
+      bank_address: primaryBank?.bank_address || 'Tbilisi, Georgia',
+      bank_iban: primaryBank?.iban || 'GE29BG0000000123456789',
+      bank_swift: primaryBank?.swift_bic || 'BAGAGE22',
+      intermediary_bank: primaryBank?.intermediary_bank_name || 'Citibank N.A.',
+      intermediary_swift: primaryBank?.intermediary_swift || 'CITIUS33',
+      currency: profile?.default_currency || 'USD',
+      total_amount: 4250.0,
+      amount_in_words: 'Four Thousand Two Hundred Fifty US Dollars',
+      notes: 'Payment is due within 15 days of invoice date. Thank you for your business!',
+      custom_typst_template: editingMarkup,
+      items: [
+        {
+          description: 'Software Engineering & Architecture Services (Sprint 12)',
+          unit: 'hrs',
+          unit_price: 125.0,
+          quantity: 30.0,
+          amount: 3750.0,
+        },
+        {
+          description: 'Cloud Infrastructure & Automated CI/CD Pipeline Setup',
+          unit: 'fixed',
+          unit_price: 500.0,
+          quantity: 1.0,
+          amount: 500.0,
+        },
+      ],
+    }
+  }
 
   // Recompile Typst SVG preview whenever editingMarkup changes
   useEffect(() => {
@@ -420,8 +435,8 @@ export function TemplatesView() {
             </span>
 
             {isActive && (
-              <Badge variant="paid" className="gap-1 text-xs">
-                <CheckCircle className="h-3 w-3" /> Active Invoice Template
+              <Badge variant="paid" className="gap-1 text-xs whitespace-nowrap">
+                <CheckCircle className="h-3 w-3" /> Active
               </Badge>
             )}
           </div>

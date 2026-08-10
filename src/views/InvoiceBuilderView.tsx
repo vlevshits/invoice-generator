@@ -40,6 +40,8 @@ import {
   RotateCcw,
   Mail,
   LayoutTemplate,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -150,6 +152,70 @@ export function InvoiceBuilderView() {
 
   const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0)
   const amountInWords = numberToWords(totalAmount, currency)
+
+  const [svgPreview, setSvgPreview] = useState<string | null>(null)
+  const [compileError, setCompileError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout
+    const compile = async () => {
+      try {
+        setCompileError(null)
+        const payload = {
+          seller_name: profile?.business_name || 'Your Business Name',
+          seller_tax_id: profile?.tax_id || '',
+          seller_address: profile?.legal_address || '',
+          invoice_number: invoiceNumber || 'INV-001',
+          issue_date: issueDate || new Date().toISOString().split('T')[0],
+          due_date: dueDate || '',
+          buyer_name: selectedCounterparty?.business_name || 'Select Counterparty',
+          buyer_tax_id: selectedCounterparty?.tax_id || '',
+          buyer_director: selectedCounterparty?.director_name || '',
+          buyer_address: selectedCounterparty?.legal_address || '',
+          bank_account_label: selectedBankAccount?.account_label || '',
+          bank_beneficiary: selectedBankAccount?.beneficiary_name || profile?.business_name || '',
+          bank_name: selectedBankAccount?.bank_name || '',
+          bank_address: selectedBankAccount?.bank_address || '',
+          bank_iban: selectedBankAccount?.iban || '',
+          bank_swift: selectedBankAccount?.swift_bic || '',
+          intermediary_bank: selectedBankAccount?.intermediary_bank_name || '',
+          intermediary_swift: selectedBankAccount?.intermediary_swift || '',
+          currency: currency,
+          total_amount: totalAmount,
+          amount_in_words: amountInWords,
+          notes: notes,
+          custom_typst_template: activeTemplateMarkup || profile?.custom_typst_template || null,
+          items: items.map((it) => ({
+            description: it.description || '',
+            unit: it.unit || '',
+            unit_price: Number(it.unit_price) || 0,
+            quantity: Number(it.quantity) || 0,
+            amount: Number(it.amount) || 0,
+          })),
+        }
+        const svg: string = await invoke('compile_typst_to_svg', { payload })
+        setSvgPreview(svg)
+      } catch (err: any) {
+        setCompileError(err.message || String(err))
+      }
+    }
+
+    timer = setTimeout(compile, 300)
+    return () => clearTimeout(timer)
+  }, [
+    profile,
+    invoiceNumber,
+    issueDate,
+    dueDate,
+    selectedCounterparty,
+    selectedBankAccount,
+    currency,
+    totalAmount,
+    amountInWords,
+    notes,
+    items,
+    activeTemplateMarkup,
+  ])
 
   const handleSaveInvoice = async (forcedStatus?: InvoiceStatus, forcedPaidDate?: string): Promise<number | null> => {
     if (!selectedCounterparty) {
@@ -530,118 +596,31 @@ export function InvoiceBuilderView() {
           </Card>
         </div>
 
-        {/* Right Panel: Live PDF Preview */}
-        <div className="col-span-12 lg:col-span-6 bg-muted/20 p-6 overflow-y-auto flex flex-col justify-between">
-          <div className="bg-card border border-border rounded-lg shadow-lg p-8 space-y-6 text-foreground font-sans text-xs">
-            {/* Header Preview */}
-            <div className="flex justify-between items-start border-b border-border pb-4">
-              <div>
-                <h3 className="font-bold text-base font-display text-foreground leading-snug">
-                  {profile?.business_name || 'Your Business Name'}
-                </h3>
-                <p className="text-muted-foreground text-xs">
-                  Tax ID: {profile?.tax_id || '123456789'}
-                </p>
-                <p className="text-muted-foreground text-xs max-w-xs">
-                  {profile?.legal_address || '123 Main Street, Suite 100, City, Country'}
-                </p>
-              </div>
-
-              <div className="text-right">
-                <h1 className="text-2xl font-bold text-emerald-500 font-display">INVOICE</h1>
-                <p className="font-mono font-semibold text-xs text-foreground">
-                  {invoiceNumber || 'INV-202608-01'}
-                </p>
-                <p className="text-muted-foreground text-xs">Date: {issueDate}</p>
-                {dueDate ? <p className="text-muted-foreground text-xs">Due: {dueDate}</p> : null}
-                {paidDate ? <p className="text-emerald-400 font-semibold text-xs">Paid: {paidDate}</p> : null}
+        {/* Right Panel: Live PDF Vector Preview */}
+        <div className="col-span-12 lg:col-span-6 bg-muted/20 p-6 overflow-hidden flex flex-col justify-between">
+          {compileError ? (
+            <div className="flex-1 flex items-center justify-center p-8 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-xs font-mono overflow-auto">
+              <div className="space-y-2 text-center max-w-md">
+                <AlertCircle className="h-8 w-8 mx-auto text-destructive" />
+                <p className="font-bold">Typst Preview Compilation Error</p>
+                <p className="text-[11px] leading-relaxed whitespace-pre-wrap">{compileError}</p>
               </div>
             </div>
-
-            {/* Buyer & Bank Info */}
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div className="space-y-1">
-                <span className="font-bold text-muted-foreground uppercase text-[10px]">
-                  Invoice To:
-                </span>
-                <p className="font-bold text-foreground">
-                  {selectedCounterparty?.business_name || 'Select Counterparty'}
-                </p>
-                <p className="text-muted-foreground font-mono">
-                  Tax ID: {selectedCounterparty?.tax_id || '---'}
-                </p>
-                {selectedCounterparty?.director_name && (
-                  <p className="text-muted-foreground">
-                    Director: {selectedCounterparty.director_name}
-                  </p>
-                )}
-                <p className="text-muted-foreground">{selectedCounterparty?.legal_address}</p>
-              </div>
-
-              <div className="space-y-1">
-                <span className="font-bold text-muted-foreground uppercase text-[10px]">
-                  Payment Details:
-                </span>
-                <p className="font-bold text-foreground">
-                  {selectedBankAccount?.bank_name || 'Select Seller Bank'}
-                </p>
-                <p className="text-muted-foreground">
-                  Beneficiary: {selectedBankAccount?.beneficiary_name}
-                </p>
-                <p className="font-mono text-muted-foreground text-[11px]">
-                  IBAN: {selectedBankAccount?.iban}
-                </p>
-                <p className="font-mono text-muted-foreground text-[11px]">
-                  SWIFT: {selectedBankAccount?.swift_bic}
-                </p>
+          ) : svgPreview ? (
+            <div className="flex-1 rounded-lg border border-border bg-slate-950/80 p-6 overflow-y-auto shadow-2xl flex justify-center items-start">
+              <div
+                className="bg-white text-slate-900 rounded-sm shadow-2xl w-full max-w-[640px] p-1 overflow-hidden border border-slate-300 [&_svg]:w-full [&_svg]:h-auto [&_svg]:block"
+                dangerouslySetInnerHTML={{ __html: svgPreview }}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center bg-card border border-border rounded-lg">
+              <div className="text-center space-y-2">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                <p className="text-xs text-muted-foreground">Rendering live Typst vector document preview...</p>
               </div>
             </div>
-
-            {/* Items Table */}
-            <div className="border border-border rounded-md overflow-hidden">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-muted text-muted-foreground font-semibold border-b border-border">
-                  <tr>
-                    <th className="p-2">Description</th>
-                    <th className="p-2 text-center">Qty (Unit)</th>
-                    <th className="p-2 text-right">Unit Price</th>
-                    <th className="p-2 text-right">Net Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {items.map((it, idx) => (
-                    <tr key={idx}>
-                      <td className="p-2 font-medium">{it.description || '---'}</td>
-                      <td className="p-2 text-center font-mono">
-                        {it.quantity} ({it.unit})
-                      </td>
-                      <td className="p-2 text-right font-mono">{it.unit_price.toFixed(2)}</td>
-                      <td className="p-2 text-right font-mono font-semibold">
-                        {it.amount.toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Combined Total Summary */}
-            <div className="flex justify-end pt-2">
-              <div className="w-80 space-y-2">
-                <div className="flex justify-between items-center font-bold text-sm">
-                  <span className="text-foreground">Grand Total:</span>
-                  <span className="text-emerald-500 font-mono text-base">
-                    {currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency === 'GBP' ? '£' : 'GEL '}
-                    {totalAmount.toFixed(2)}
-                  </span>
-                </div>
-                <div className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground text-left">
-                  <span className="font-semibold text-foreground">Amount in words:</span>{' '}
-                  {amountInWords}
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
 
           <p className="text-[11px] text-muted-foreground text-center pt-4">
             Live preview rendered with dynamic Typst engine formatting.
