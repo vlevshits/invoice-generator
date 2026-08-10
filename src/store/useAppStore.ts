@@ -33,6 +33,7 @@ interface AppState {
   setCurrentView: (view: ActiveView) => void
   startCreateInvoice: () => void
   startEditInvoice: (invoice: InvoiceWithDetails) => void
+  setEditingInvoice: (invoice: InvoiceWithDetails | null) => void
   setGoogleAccessToken: (token: string | null) => void
   setGoogleClientId: (clientId: string) => void
   setGoogleClientSecret: (clientSecret: string) => void
@@ -60,6 +61,8 @@ export const useAppStore = create<AppState>((set) => ({
       currentView: 'builder',
       editingInvoice: invoice,
     }),
+
+  setEditingInvoice: (invoice) => set({ editingInvoice: invoice }),
 
   setGoogleAccessToken: (token) => {
     if (token) {

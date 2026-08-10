@@ -26,7 +26,6 @@ import { BankAccountSelector } from '@/components/domain/BankAccountSelector'
 import { LineItemsEditor } from '@/components/domain/LineItemsEditor'
 import { AmountInWordsBadge } from '@/components/domain/AmountInWordsBadge'
 import { RecordPaymentModal } from '@/components/domain/RecordPaymentModal'
-import { TemplateLibraryModal } from '@/components/domain/TemplateLibraryModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -38,8 +37,6 @@ import {
   FileText,
   CheckCircle2,
   RotateCcw,
-  Mail,
-  LayoutTemplate,
   AlertCircle,
   Loader2,
 } from 'lucide-react'
@@ -58,7 +55,6 @@ export function InvoiceBuilderView() {
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate] = useState('')
   const [paidDate, setPaidDate] = useState<string | undefined>(editingInvoice?.paid_date)
-  const [isOpenTemplateModal, setIsOpenTemplateModal] = useState(false)
   const [activeTemplateMarkup, setActiveTemplateMarkup] = useState<string>('')
   const [currency, setCurrency] = useState<Currency>('GEL')
   const [status, setStatus] = useState<InvoiceStatus>('DRAFT')
@@ -251,6 +247,25 @@ export function InvoiceBuilderView() {
       )
       setStatus(finalStatus)
       if (finalPaidDate !== undefined) setPaidDate(finalPaidDate)
+      if (savedId) {
+        useAppStore.getState().setEditingInvoice({
+          id: savedId,
+          invoice_number: invoiceNumber,
+          issue_date: issueDate,
+          due_date: dueDate || undefined,
+          paid_date: finalPaidDate,
+          counterparty_id: selectedCounterparty.id,
+          bank_account_id: selectedBankAccount.id,
+          currency,
+          total_amount: totalAmount,
+          amount_in_words: amountInWords,
+          notes: notes || undefined,
+          status: finalStatus,
+          counterparty: selectedCounterparty,
+          bank_account: selectedBankAccount,
+          items,
+        })
+      }
       return savedId
     } catch (err: any) {
       alert('Failed to save invoice: ' + String(err))
@@ -351,36 +366,6 @@ export function InvoiceBuilderView() {
     }
   }
 
-  const handleSendEmail = async () => {
-    if (!selectedCounterparty) {
-      alert('Please select a buyer counterparty first.')
-      return
-    }
-
-    let recipientEmail = selectedCounterparty.email
-    if (!recipientEmail) {
-      const inputEmail = prompt(
-        `Enter email address for ${selectedCounterparty.business_name}:`
-      )
-      if (!inputEmail) return
-      recipientEmail = inputEmail
-    }
-
-    const sellerName = profile?.business_name || 'Your Business Name'
-    const subject = encodeURIComponent(`Invoice ${invoiceNumber} from ${sellerName}`)
-    const bodyText = encodeURIComponent(
-      `Dear ${selectedCounterparty.business_name},\n\nPlease find details for Invoice ${invoiceNumber} issued on ${issueDate}.\n\nTotal Amount: ${currency} ${totalAmount.toFixed(2)}\n\nBest regards,\n${sellerName}`
-    )
-
-    const mailtoUrl = `mailto:${recipientEmail}?subject=${subject}&body=${bodyText}`
-
-    try {
-      await invoke('plugin:opener|open_url', { url: mailtoUrl })
-    } catch (_) {
-      window.open(mailtoUrl, '_blank')
-    }
-  }
-
   const validTransitions = getValidTransitions(status)
 
   const getStatusBadge = (st: InvoiceStatus) => {
@@ -446,25 +431,6 @@ export function InvoiceBuilderView() {
           >
             <Save className="h-4 w-4 text-muted-foreground" />
             Save Draft
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsOpenTemplateModal(true)}
-            className="h-9 text-xs font-semibold gap-1.5"
-          >
-            <LayoutTemplate className="h-4 w-4" />
-            Template Library
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={handleSendEmail}
-            className="h-9 px-4 text-xs font-semibold gap-1.5 text-foreground"
-          >
-            <Mail className="h-4 w-4 text-indigo-400" />
-            Send via Email
           </Button>
 
           <Button onClick={handleExportPdf} className="h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs gap-1.5">
@@ -639,22 +605,6 @@ export function InvoiceBuilderView() {
           setPendingTargetStatus(null)
         }}
         onConfirm={handleConfirmPaidDateModal}
-      />
-
-      {/* Template Library Modal */}
-      <TemplateLibraryModal
-        isOpen={isOpenTemplateModal}
-        onClose={() => setIsOpenTemplateModal(false)}
-        currentTemplateMarkup={activeTemplateMarkup || profile?.custom_typst_template || ''}
-        onSelectTemplate={async (markup) => {
-          setActiveTemplateMarkup(markup)
-          if (profile?.id) {
-            await saveProfile({
-              ...profile,
-              custom_typst_template: markup,
-            })
-          }
-        }}
       />
     </div>
   )

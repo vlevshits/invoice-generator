@@ -21,7 +21,7 @@ A desktop application for creating, managing, and exporting professional invoice
   - OAuth2 PKCE authentication flow using `https://www.googleapis.com/auth/drive.file`.
   - 1-click PDF upload to Google Drive folder.
   - CSV ledger export directly to Google Sheets.
-- 🛡️ **Client-Side Drizzle Migrations**: SQL schema migrations generated via `drizzle-kit` and run automatically on app launch.
+- 🛡️ **Automated SQL Migrations**: SQL schema migrations bundled from `migrations/` and run automatically on app launch.
 - 🗑️ **In-App Safety Modals**: Custom confirmation dialogs replacing native browser alerts for destructive deletion actions.
 
 ---
@@ -34,7 +34,7 @@ A desktop application for creating, managing, and exporting professional invoice
 | **Frontend UI** | React 19 + TypeScript + Vite | User interface & reactive state |
 | **Styling & Components** | Tailwind CSS v4 + Radix UI / shadcn/ui | Component design system |
 | **State Management** | Zustand | Global application state |
-| **Database & ORM** | SQLite via `@tauri-apps/plugin-sql` + [Drizzle ORM](https://orm.drizzle.team) | On-device relational database & migrations |
+| **Database** | SQLite via `@tauri-apps/plugin-sql` | On-device relational database & native SQL queries |
 | **PDF Renderer** | [Typst CLI](https://typst.app) | Fast markup document compilation (PDF & SVG) |
 
 ---
@@ -73,21 +73,11 @@ npm run tauri:dev
 
 ---
 
-## Database & Drizzle Migrations
+## Database & Migrations
 
-Database tables are defined in [`src/db/schema.ts`](file:///Users/levshitsvv/Projects/Sandbox/invoice-generator/src/db/schema.ts) using Drizzle ORM.
+Database tables are defined in [`migrations/0001_initial_schema.sql`](file:///Users/levshitsvv/Projects/Sandbox/invoice-generator/migrations/0001_initial_schema.sql).
 
-### Database Commands
-
-```bash
-# Generate SQL migration files from schema changes
-npm run db:generate
-
-# Open Drizzle Studio for visual database inspection
-npm run db:studio
-```
-
-Migrations generated in `drizzle/` are bundled at build time using Vite `import.meta.glob` and executed automatically when `getRawDb()` initializes (`src/lib/migrator.ts`).
+Migrations in `migrations/` are bundled at build time using Vite `import.meta.glob` and executed automatically when the database initializes (`src/lib/migrator.ts`).
 
 ---
 

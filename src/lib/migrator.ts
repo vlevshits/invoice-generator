@@ -1,34 +1,43 @@
-import { sql } from 'drizzle-orm'
-import type { drizzle } from 'drizzle-orm/sqlite-proxy'
-import type * as schema from '@/db/schema'
+import type Database from '@tauri-apps/plugin-sql'
 
-type DrizzleDb = ReturnType<typeof drizzle<typeof schema>>
-
-// Vite eager glob to bundle all Drizzle .sql migration files into client build
-const migrationFiles = import.meta.glob('/drizzle/*.sql', {
+// Vite eager glob to bundle all standard .sql migration files into client build
+const migrationFiles = import.meta.glob('/migrations/*.sql', {
   query: '?raw',
   eager: true,
   import: 'default',
 }) as Record<string, string>
 
-export async function runDrizzleMigrations(db: DrizzleDb): Promise<void> {
+export async function runMigrations(db: Database): Promise<void> {
   try {
-    // 1. Ensure Drizzle migration tracking table exists
-    await db.run(sql`
-      CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+    // 1. Ensure schema migration tracking table exists
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS __schema_migrations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        hash TEXT NOT NULL UNIQUE,
-        created_at INTEGER NOT NULL
+        filename TEXT NOT NULL UNIQUE,
+        executed_at INTEGER NOT NULL
       );
     `)
 
-    // 2. Fetch already executed migration hashes
-    const appliedRows = await db.values<[string]>(
-      sql`SELECT hash FROM __drizzle_migrations ORDER BY id ASC`
+    // 2. Fetch already executed migration filenames
+    const appliedRows = await db.select<{ filename: string }[]>(
+      'SELECT filename FROM __schema_migrations ORDER BY id ASC'
     )
-    const appliedHashes = new Set(appliedRows.map((r) => r[0]))
+    const appliedHashes = new Set(appliedRows.map((r) => r.filename))
 
-    // 3. Sort migration files sequentially (0000_..., 0001_...)
+    // Check if legacy __drizzle_migrations table exists for backward compatibility
+    try {
+      const legacyRows = await db.select<{ hash: string }[]>(
+        'SELECT hash FROM __drizzle_migrations'
+      )
+      for (const r of legacyRows) {
+        appliedHashes.add(r.hash)
+        appliedHashes.add(r.hash.replace(/\.sql$/, ''))
+      }
+    } catch {
+      // Legacy table does not exist, ignore
+    }
+
+    // 3. Sort migration files sequentially (0001_..., 0002_...)
     const sortedKeys = Object.keys(migrationFiles).sort()
 
     for (const fileKey of sortedKeys) {
@@ -38,7 +47,6 @@ export async function runDrizzleMigrations(db: DrizzleDb): Promise<void> {
       if (!appliedHashes.has(fileName) && !appliedHashes.has(fileStem)) {
         const sqlContent = migrationFiles[fileKey]
         if (sqlContent) {
-          // Drizzle breaks statements using '--> statement-breakpoint' comments
           const statements = sqlContent
             .split('--> statement-breakpoint')
             .map((s) => s.trim())
@@ -46,7 +54,7 @@ export async function runDrizzleMigrations(db: DrizzleDb): Promise<void> {
 
           for (const stmt of statements) {
             try {
-              await db.run(sql.raw(stmt))
+              await db.execute(stmt)
             } catch (err: any) {
               const msg = String(err?.message || err).toLowerCase()
               if (
@@ -55,19 +63,20 @@ export async function runDrizzleMigrations(db: DrizzleDb): Promise<void> {
               ) {
                 continue
               }
-              console.error(`[Drizzle Migration Error] Failed statement: ${stmt}`, err)
+              console.error(`[Migration Error] Failed statement: ${stmt}`, err)
               throw err
             }
           }
 
-          await db.run(
-            sql`INSERT INTO __drizzle_migrations (hash, created_at) VALUES (${fileName}, ${Date.now()})`
+          await db.execute(
+            'INSERT INTO __schema_migrations (filename, executed_at) VALUES ($1, $2)',
+            [fileName, Date.now()]
           )
-          console.log(`[Drizzle Migration] Successfully applied: ${fileName}`)
+          console.log(`[Migration] Successfully applied: ${fileName}`)
         }
       }
     }
   } catch (err) {
-    console.error('Failed to run Drizzle migrations:', err)
+    console.error('Failed to run database migrations:', err)
   }
 }
