@@ -61,6 +61,7 @@ export async function getProfile(): Promise<Profile | null> {
     tax_id: r.tax_id,
     legal_address: r.legal_address,
     default_currency: r.default_currency as Currency,
+    default_payment_terms: r.default_payment_terms || undefined,
     created_at: r.created_at,
   }
 }
@@ -71,13 +72,26 @@ export async function saveProfile(profile: Partial<Profile>): Promise<void> {
 
   if (existing) {
     await tauriDb.execute(
-      `UPDATE profiles SET business_name = $1, tax_id = $2, legal_address = $3, default_currency = $4 WHERE id = $5`,
-      [profile.business_name, profile.tax_id, profile.legal_address, profile.default_currency || 'GEL', existing.id]
+      `UPDATE profiles SET business_name = $1, tax_id = $2, legal_address = $3, default_currency = $4, default_payment_terms = $5 WHERE id = $6`,
+      [
+        profile.business_name,
+        profile.tax_id,
+        profile.legal_address,
+        profile.default_currency || 'GEL',
+        profile.default_payment_terms || null,
+        existing.id,
+      ]
     )
   } else {
     await tauriDb.execute(
-      `INSERT INTO profiles (business_name, tax_id, legal_address, default_currency) VALUES ($1, $2, $3, $4)`,
-      [profile.business_name || '', profile.tax_id || '', profile.legal_address || '', profile.default_currency || 'GEL']
+      `INSERT INTO profiles (business_name, tax_id, legal_address, default_currency, default_payment_terms) VALUES ($1, $2, $3, $4, $5)`,
+      [
+        profile.business_name || '',
+        profile.tax_id || '',
+        profile.legal_address || '',
+        profile.default_currency || 'GEL',
+        profile.default_payment_terms || null,
+      ]
     )
   }
 }

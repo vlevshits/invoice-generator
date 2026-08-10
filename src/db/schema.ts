@@ -7,6 +7,7 @@ export const profiles = sqliteTable('profiles', {
   taxId: text('tax_id').notNull(),
   legalAddress: text('legal_address').notNull(),
   defaultCurrency: text('default_currency').notNull().default('GEL'),
+  defaultPaymentTerms: text('default_payment_terms'),
   createdAt: text('created_at'),
 })
 

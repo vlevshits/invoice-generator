@@ -8,6 +8,7 @@ export interface Profile {
   tax_id: string
   legal_address: string
   default_currency: Currency
+  default_payment_terms?: string
   created_at?: string
 }
 

@@ -99,8 +99,14 @@ export function InvoiceBuilderView() {
 
       if (editingInvoice.bank_account) {
         setSelectedBankAccount(editingInvoice.bank_account)
+      } else if (bList.length > 0) {
+        const found = bList.find((b) => b.id === editingInvoice.bank_account_id)
+        if (found) setSelectedBankAccount(found)
       }
     } else {
+      if (p && p.default_payment_terms) {
+        setNotes(p.default_payment_terms)
+      }
       const num = await getNextInvoiceNumber(issueDate)
       setInvoiceNumber(num)
     }

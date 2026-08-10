@@ -37,7 +37,6 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  XCircle,
 } from 'lucide-react'
 
 export function SettingsView() {
@@ -55,6 +54,7 @@ export function SettingsView() {
   const [taxId, setTaxId] = useState('')
   const [legalAddress, setLegalAddress] = useState('')
   const [defaultCurrency, setDefaultCurrency] = useState<Currency>('GEL')
+  const [defaultPaymentTerms, setDefaultPaymentTerms] = useState('')
 
   // Bank Accounts List
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
@@ -83,6 +83,7 @@ export function SettingsView() {
       setTaxId(p.tax_id)
       setLegalAddress(p.legal_address)
       setDefaultCurrency(p.default_currency)
+      setDefaultPaymentTerms(p.default_payment_terms || '')
     }
     setBankAccounts(bList)
   }
@@ -97,6 +98,7 @@ export function SettingsView() {
       tax_id: taxId,
       legal_address: legalAddress,
       default_currency: defaultCurrency,
+      default_payment_terms: defaultPaymentTerms,
     })
     alert('Seller profile updated successfully!')
     loadData()
@@ -193,7 +195,7 @@ export function SettingsView() {
           Settings & Profile
         </h2>
         <p className="text-sm text-muted-foreground">
-          Configure your legal seller details, multiple bank accounts, default currency, and Google Drive OAuth.
+          Configure your legal seller details, default payment terms, multiple bank accounts, and Google Drive OAuth.
         </p>
       </div>
 
@@ -202,10 +204,10 @@ export function SettingsView() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Building className="h-4 w-4 text-primary" />
-            Seller Business Profile
+            Seller Business Profile & Payment Terms
           </CardTitle>
           <CardDescription>
-            Your legal business entity details rendered at the top of every generated invoice.
+            Your legal business entity details and default payment terms rendered on generated invoices.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -261,10 +263,26 @@ export function SettingsView() {
             </select>
           </div>
 
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">
+              Default Payment Terms & Invoice Notes
+            </label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Payment due within 14 calendar days of invoice issuance. Please include invoice number in bank transfer description."
+              value={defaultPaymentTerms}
+              onChange={(e) => setDefaultPaymentTerms(e.target.value)}
+              className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground resize-y"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              These payment terms will automatically pre-populate on new invoices (and can be edited per-invoice).
+            </p>
+          </div>
+
           <div className="pt-2 flex justify-end">
             <Button onClick={handleSaveProfile} className="gap-2">
               <Save className="h-4 w-4" />
-              Save Profile
+              Save Profile & Payment Terms
             </Button>
           </div>
         </CardContent>
