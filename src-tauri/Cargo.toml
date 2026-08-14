@@ -1,6 +1,6 @@
 [package]
 name = "invoice-generator"
-version = "1.0.4"
+version = "1.0.5"
 description = "Desktop application for generating, tracking, and exporting invoices"
 authors = ["Desktop Developer"]
 license = "MIT"
