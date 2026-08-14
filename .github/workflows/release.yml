@@ -53,6 +53,37 @@ jobs:
             chmod 755 src-tauri/bin/* || true
           fi
 
+      - name: Code sign Typst binary on macOS
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -f src-tauri/bin/typst ]; then
+            echo "Importing certificate and signing bundled typst binary for Apple notarization..."
+            KEYCHAIN_PATH="$RUNNER_TEMP/typst_signing.keychain-db"
+            KEYCHAIN_PASSWORD="temp_pass_$(date +%s)"
+            security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+            echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+            security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+            # Add to user keychain search list
+            security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed -e 's/^[ \t]*"//' -e 's/"$//')
+
+            # Sign typst with Hardened Runtime and timestamp
+            codesign --force --options runtime --timestamp --keychain "$KEYCHAIN_PATH" --sign "$APPLE_SIGNING_IDENTITY" src-tauri/bin/typst
+
+            # Verify signature
+            codesign -dv --verbose=4 src-tauri/bin/typst
+            rm -f "$RUNNER_TEMP/cert.p12"
+          fi
+
       - name: Install Linux build dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
